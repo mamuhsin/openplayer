@@ -22,6 +22,7 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - run: npm ci
+      - run: npm test
       - run: npm run build
       - name: Generate Android project if needed
         run: test -d android || npx cap add android
