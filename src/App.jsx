@@ -107,17 +107,17 @@ function HomePage({ tracks, current, isPlaying, playTrack, setPage }) {
     <h1 className="sr-only">Home</h1>
     <Section title="Trending songs" onShowAll={() => setPage({ type:'playlist', id:'top-hits' })}>
       <div className="spotify-scroll grid auto-cols-[170px] grid-flow-col overflow-x-auto px-2 pb-2 md:grid-flow-row md:grid-cols-[repeat(auto-fit,minmax(145px,1fr))] md:overflow-visible md:px-4">
-        {tracks.slice(0,6).map(t => <MediaCard key={t.id} item={t} onOpen={() => setPage({type:'album',id:t.album})} onPlay={() => playTrack(t)} playing={current?.id===t.id && isPlaying}/>) }
+        {tracks.slice(0,6).map(t => <MediaCard key={t.id} item={t} onOpen={() => setPage({type:'search',query:t.title})} onPlay={() => playTrack(t)} playing={current?.id===t.id && isPlaying}/>) }
       </div>
     </Section>
     <Section title="Popular artists" onShowAll={() => setPage({ type:'search' })}>
       <div className="spotify-scroll grid auto-cols-[170px] grid-flow-col overflow-x-auto px-2 pb-2 md:grid-flow-row md:grid-cols-[repeat(auto-fit,minmax(145px,1fr))] md:overflow-visible md:px-4">
-        {[...new Map(tracks.map(t=>[t.artist,{name:t.artist,artwork:t.artwork,color:t.color}])).values()].slice(0,6).map(a => <MediaCard key={a.name} item={a} round onOpen={() => setPage({type:'artist',id:a.name})} onPlay={() => playTrack(tracks.find(t=>t.artist===a.name))} playing={current?.artist===a.name && isPlaying}/>) }
+        {[...new Map(tracks.map(t=>[t.artist,{name:t.artist,artwork:t.artwork,color:t.color}])).values()].slice(0,6).map(a => <MediaCard key={a.name} item={a} round onOpen={() => setPage({type:'search',query:a.name})} onPlay={() => playTrack(tracks.find(t=>t.artist===a.name))} playing={current?.artist===a.name && isPlaying}/>) }
       </div>
     </Section>
     <Section title="Popular albums and singles">
       <div className="spotify-scroll grid auto-cols-[170px] grid-flow-col overflow-x-auto px-2 pb-2 md:grid-flow-row md:grid-cols-[repeat(auto-fit,minmax(145px,1fr))] md:overflow-visible md:px-4">
-        {[...tracks].reverse().slice(0,6).map(t => <MediaCard key={t.id} item={t} onOpen={() => setPage({type:'album',id:t.album})} onPlay={() => playTrack(t)} playing={current?.id===t.id && isPlaying}/>) }
+        {[...tracks].reverse().slice(0,6).map(t => <MediaCard key={t.id} item={t} onOpen={() => setPage({type:'search',query:t.title})} onPlay={() => playTrack(t)} playing={current?.id===t.id && isPlaying}/>) }
       </div>
     </Section>
   </div>
@@ -141,9 +141,9 @@ function CollectionPage({ kind='playlist', title, description, tracks, playTrack
   return <div className="page-fade min-h-full bg-[#121212] pb-28">
     <section className="flex min-h-[276px] flex-col justify-end gap-5 p-6 md:flex-row md:items-end md:justify-start" style={{background:`linear-gradient(180deg, ${hero[1]}, ${hero[0]})`}}>
       {isLiked ? <div className="grid h-40 w-40 shrink-0 place-items-center bg-gradient-to-br from-[#450af5] to-[#c4efd9] shadow-2xl md:h-56 md:w-56"><Heart size={70} fill="white"/></div> : <Art item={{...first,title,glyph:title[0],color:hero}} large className="h-40 w-40 shrink-0 md:h-56 md:w-56"/>}
-      <div className="min-w-0"><div className="mb-2 text-xs font-semibold">{isLiked?'Playlist':'Playlist'}</div><h1 className="truncate text-4xl font-black tracking-[-.05em] sm:text-6xl xl:text-8xl">{title}</h1><p className="mt-4 text-sm text-white/80">{description}</p><div className="mt-2 text-sm"><b>Spotify Clone</b> · {tracks.length} {tracks.length===1?'song':'songs'}, about {tracks.length?Math.max(1,Math.round(tracks.reduce((a,t)=>a+t.duration,0)/60)):0} min</div></div>
+      <div className="min-w-0"><div className="mb-2 text-xs font-semibold">{isLiked?'Playlist':'Playlist'}</div><h1 className="truncate text-4xl font-black tracking-[-.05em] sm:text-6xl xl:text-8xl">{title}</h1><p className="mt-4 text-sm text-white/80">{description}</p><div className="mt-2 text-sm"><b>OpenPlayer</b> · {tracks.length} {tracks.length===1?'song':'songs'}, about {tracks.length?Math.max(1,Math.round(tracks.reduce((a,t)=>a+t.duration,0)/60)):0} min</div></div>
     </section>
-    <div className="bg-gradient-to-b from-black/50 to-transparent p-4 md:p-6"><div className="mb-5 flex items-center gap-5"><button onClick={()=>tracks[0]&&playTrack(tracks[0])} className="grid h-14 w-14 place-items-center rounded-full bg-[#1ed760] text-black hover:scale-105">{current&&tracks.some(t=>t.id===current.id)&&isPlaying?<Pause size={27} fill="black"/>:<Play size={27} fill="black" className="ml-1"/>}</button><IconButton label="Shuffle playlist" active={shuffle} onClick={()=>setShuffle(v=>!v)}><Shuffle size={30}/></IconButton></div>
+    <div className="bg-gradient-to-b from-black/50 to-transparent p-4 md:p-6"><div className="mb-5 flex items-center gap-5"><button aria-label="Play playlist" disabled={!tracks.length} onClick={()=>tracks[0]&&playTrack(current&&tracks.some(t=>t.id===current.id)?current:tracks[0])} className="grid h-14 w-14 place-items-center rounded-full bg-[#1ed760] text-black hover:scale-105">{current&&tracks.some(t=>t.id===current.id)&&isPlaying?<Pause size={27} fill="black"/>:<Play size={27} fill="black" className="ml-1"/>}</button><IconButton label="Shuffle playlist" active={shuffle} onClick={()=>setShuffle(v=>!v)}><Shuffle size={30}/></IconButton></div>
       <div className="mb-2 hidden grid-cols-[24px_minmax(160px,2fr)_minmax(100px,1fr)_44px_50px] gap-3 border-b border-white/10 px-2 pb-2 text-sm text-[#b3b3b3] md:grid"><span>#</span><span>Title</span><span>Album</span><span/><Clock3 size={16}/></div>
       {tracks.length ? tracks.map((t,i)=><TrackRow key={t.id} track={t} index={i} playTrack={playTrack} current={current} isPlaying={isPlaying} liked={likedIds.includes(t.id)} toggleLike={toggleLike} compact={false}/>) : <div className="py-20 text-center"><Music2 className="mx-auto mb-4" size={48}/><h2 className="text-2xl font-bold">This playlist is empty</h2><button onClick={()=>setPage({type:'search'})} className="mt-5 rounded-full bg-white px-5 py-3 font-bold text-black">Find something to add</button></div>}
     </div>
