@@ -8,6 +8,7 @@ export function createMusicService({instances=[],fetchImpl=globalThis.fetch,now=
   const clients=new Map(instances.map(origin=>[new URL(origin).href,createInvidiousClient(origin,{fetchImpl,timeoutMs})]))
   const quarantine=(origin,e)=>blocked.set(origin,/HTTP (401|403|429)/.test(e.message)?Infinity:now()+120000)
   const usable=origin=>!blocked.has(origin)||blocked.get(origin)<now()
+  const unavailable=origin=>Object.assign(new Error('This music service is temporarily unavailable. Search available music below.'),{retryAfterMs:blocked.has(origin)?Math.max(0,blocked.get(origin)-now()):Infinity})
   async function audius(query,signal,latest) {
     const path=query?`tracks/search?query=${encodeURIComponent(query)}&limit=40`:'tracks/trending?limit=24'
     const response=await fetchImpl(`https://api.audius.co/v1/${path}&app_name=OpenPlayer`,{signal:signal?AbortSignal.any([signal,AbortSignal.timeout(timeoutMs)]):AbortSignal.timeout(timeoutMs)})
@@ -35,10 +36,17 @@ export function createMusicService({instances=[],fetchImpl=globalThis.fetch,now=
     remember(key,result);return result
   }
   async function play(track,audio,options={}) {
-    const client=clients.get(track.instanceUrl)
-    if(!client||!usable(track.instanceUrl))throw Error('This music source is unavailable. Search other recordings instead.')
+    let origin
+    try { origin=new URL(track.instanceUrl).href } catch { /* Old or incomplete saved metadata. */ }
+    const client=clients.get(origin)
+    if(!client)throw Object.assign(new Error('This saved recording uses a source that is no longer available. Search for it again.'),{retryAfterMs:Infinity})
+    if(!usable(origin))throw unavailable(origin)
     try{return await client.playVideo(track.videoId,audio,options)}
-    catch(e){if(e.name!=='AbortError'&&e.name!=='NotAllowedError')quarantine(track.instanceUrl,e);throw e}
+    catch(e){
+      // A removed video, unsupported codec or failed media URL is not a source outage.
+      if(e.sourceFailure&&!options.signal?.aborted){quarantine(origin,e);e.retryAfterMs=unavailable(origin).retryAfterMs}
+      throw e
+    }
   }
   return {search,play,clearCache:()=>cache.clear()}
 }

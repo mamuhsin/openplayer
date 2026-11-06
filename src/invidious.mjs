@@ -40,10 +40,21 @@ export function createInvidiousClient(instanceUrl, { fetchImpl = globalThis.fetc
     const timeout = AbortSignal.timeout(timeoutMs)
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout
     combined.throwIfAborted()
-    const response = await fetchImpl(url, { headers: { Accept: 'application/json' }, signal: combined, credentials: 'omit' })
-    if (!response.ok) throw new Error(`Invidious request failed (HTTP ${response.status})`)
+    let response
+    try {
+      response = await fetchImpl(url, { headers: { Accept: 'application/json' }, signal: combined, credentials: 'omit' })
+    } catch (error) {
+      if (!signal?.aborted) error.sourceFailure = true
+      throw error
+    }
+    if (!response.ok) {
+      const error = new Error(`Invidious request failed (HTTP ${response.status})`)
+      error.status = response.status
+      error.sourceFailure = [401, 403, 429].includes(response.status) || response.status >= 500
+      throw error
+    }
     let body
-    try { body = await response.json() } catch { throw new Error('The instance returned invalid JSON') }
+    try { body = await response.json() } catch { throw Object.assign(new Error('The instance returned invalid JSON'), { sourceFailure: true }) }
     combined.throwIfAborted()
     if (body?.error) throw new Error(String(body.error))
     return body

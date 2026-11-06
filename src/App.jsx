@@ -190,6 +190,25 @@ function CreateModal({ onClose, onCreate }) {
   return <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4" onMouseDown={onClose}><form onSubmit={e=>{e.preventDefault();onCreate(name)}} onMouseDown={e=>e.stopPropagation()} className="w-full max-w-md rounded-lg bg-[#282828] p-6 shadow-2xl"><div className="flex items-center"><h2 className="text-2xl font-bold">Create playlist</h2><button type="button" onClick={onClose} className="ml-auto"><X/></button></div><label className="mt-5 block text-xs font-bold">Name</label><input autoFocus value={name} onChange={e=>setName(e.target.value)} className="mt-2 w-full rounded bg-[#3e3e3e] px-3 py-3 outline-none ring-white focus:ring-1" maxLength={60}/><p className="mt-4 text-xs text-[#b3b3b3]">Your playlist is stored only in this browser.</p><button disabled={!name.trim()} className="mt-6 float-right rounded-full bg-[#1ed760] px-6 py-3 font-bold text-black disabled:opacity-50">Create</button><div className="clear-both"/></form></div>
 }
 
+function PlaybackNotice({ message, retryAt, onRetry, onAlternatives, onDismiss }) {
+  const [now,setNow]=useState(Date.now())
+  useEffect(()=>{
+    setNow(Date.now())
+    if(!Number.isFinite(retryAt)||retryAt<=Date.now())return
+    const timer=setInterval(()=>setNow(Date.now()),1000)
+    return()=>clearInterval(timer)
+  },[retryAt])
+  const seconds=Math.max(0,Math.ceil((retryAt-now)/1000))
+  return <div role="alert" className="fixed bottom-32 left-4 right-4 z-[80] mx-auto max-w-2xl rounded-lg bg-red-950 p-4 text-center text-sm shadow-xl">
+    {message}
+    <div className="mt-3 flex flex-wrap justify-center gap-4">
+      {Number.isFinite(retryAt)&&<button disabled={seconds>0} onClick={onRetry} className="underline disabled:opacity-50">{seconds>0?`Retry in ${seconds}s`:'Retry playback'}</button>}
+      <button onClick={onAlternatives} className="underline">Find available music</button>
+      <button onClick={onDismiss} className="underline">Dismiss</button>
+    </div>
+  </div>
+}
+
 export default function App() {
   const [page,setPageState]=useState({type:'home'})
   const [query,setQuery]=useState('')
@@ -219,6 +238,7 @@ export default function App() {
   const [status,setStatus]=useState('')
   const [musicError,setMusicError]=useState('')
   const [playError,setPlayError]=useState('')
+  const [playRetryAt,setPlayRetryAt]=useState(0)
   const tracks=useMemo(()=>[...catalog,...uploaded],[catalog,uploaded])
   const searchQuery=page.type==='search'?query:''
   useEffect(()=>{
@@ -274,7 +294,7 @@ export default function App() {
     }
     playbackRequest.current?.abort()
     const request=new AbortController();playbackRequest.current=request
-    a.pause();setCurrent(track);setProgress(0);setDuration(track.duration||0);setPlayLoading(true);setPlayError('')
+    a.pause();setCurrent(track);setProgress(0);setDuration(track.duration||0);setPlayLoading(true);setPlayError('');setPlayRetryAt(0)
     if(list?.length)setQueue(list)
     else if(!force)setQueue(results.some(t=>t.id===track.id)?results:tracks.filter(t=>likedIds.includes(t.id)||t.id===track.id))
     let timer
@@ -286,7 +306,16 @@ export default function App() {
         await Promise.race([a.play(),new Promise((_,reject)=>request.signal.addEventListener('abort',()=>{a.pause();reject(request.signal.reason)},{once:true}))])
       }
       if(playbackRequest.current===request)setPlayLoading(false)
-    }catch(e){if(playbackRequest.current===request){setPlayLoading(false);if(e.name!=='AbortError')setPlayError(e.name==='NotAllowedError'?'Tap Play again to allow audio.':e.message)}}
+    }catch(e){if(playbackRequest.current===request){
+      setPlayLoading(false)
+      if(e.name!=='AbortError'){
+        setPlayError(e.name==='NotAllowedError'?'Tap Play again to allow audio.':e.sourceFailure?'The music service cannot play this recording right now. Available music has been refreshed below.':/No supported audio-only/.test(e.message)?'This recording has no playable audio. Try another recording.':e.message)
+        if(e.retryAfterMs!==undefined){
+          setPlayRetryAt(Number.isFinite(e.retryAfterMs)?Date.now()+e.retryAfterMs:Infinity)
+          musicService.clearCache();setRetryCount(v=>v+1)
+        }
+      }
+    }}
     finally{clearTimeout(timer)}
   }
   function next(){if(!queue.length)return;const i=queue.findIndex(t=>t.id===current?.id);const choices=queue.filter(t=>t.id!==current?.id);const t=shuffle&&choices.length?choices[Math.floor(Math.random()*choices.length)]:queue[(i+1)%queue.length];playTrack(t,true)}
@@ -300,7 +329,7 @@ export default function App() {
     setPlaylists(v=>[...v,p]);setCreateOpen(false);setAddTarget(null);setPage({type:'playlist',id:p.id})
   }
   const handleUpload=e=>{const file=e.target.files?.[0];if(!file)return;const t={id:'upload-'+Date.now(),title:file.name.replace(/\.[^.]+$/,''),artist:'Local file',album:'Uploads (this session)',duration:0,color:['#0f766e','#22c55e'],glyph:'♪',src:URL.createObjectURL(file),uploaded:true};setUploaded(v=>[...v,t]);playTrack(t,false,[t]);e.target.value=''}
-  const alternatives=()=>{setQuery(current?.title||'');setAudiusOnly(true);setPlayError('');setPage({type:'search'});retry()}
+  const alternatives=()=>{setQuery(query.trim()||current?.title?.split('|')[0].trim()||'');setAudiusOnly(true);setPlayError('');setPage({type:'search'});retry()}
   let content
   if(page.type==='search')content=<UnifiedSearch query={query} setQuery={q=>{setQuery(q);setAudiusOnly(false)}} results={results} busy={busy} error={musicError} status={status} latest={latest} setLatest={setLatest} retry={retry} playTrack={playTrack} current={current} isPlaying={isPlaying} toggleLike={toggleLike} likedIds={likedIds} setPage={setPage} onAdd={setAddTarget}/>
   else if(page.type==='library')content=<LibraryPage playlists={playlists} setPage={setPage} setCreateOpen={setCreateOpen} likedCount={likedIds.length} onUpload={()=>fileRef.current?.click()}/>
@@ -316,7 +345,7 @@ export default function App() {
     <Player loading={playLoading} current={current} isPlaying={isPlaying} toggle={toggle} next={next} previous={previous} shuffle={shuffle} setShuffle={setShuffle} repeat={repeat} setRepeat={setRepeat} volume={volume} setVolume={setVolume} progress={progress} duration={duration} seek={seek} liked={current&&likedIds.includes(current.id)} toggleLike={toggleLike} setQueueOpen={setQueueOpen}/>
     <MobileNav page={page} setPage={setPage}/>
     {playLoading&&<div role="status" className="fixed bottom-32 left-4 z-[65] rounded bg-[#282828] p-3 text-sm">Loading audio…</div>}
-    {playError&&<div role="alert" className="fixed bottom-32 left-4 right-4 z-[80] rounded-lg bg-red-950 p-4 text-center">{playError}<div className="mt-2 flex justify-center gap-4"><button onClick={()=>playTrack(current,true)} className="underline">Retry playback</button><button onClick={alternatives} className="underline">Find other recordings</button><button onClick={()=>setPlayError('')} className="underline">Dismiss</button></div></div>}
+    {playError&&<PlaybackNotice message={playError} retryAt={playRetryAt} onRetry={()=>playTrack(current,true)} onAlternatives={alternatives} onDismiss={()=>setPlayError('')}/>}
     {queueOpen&&<QueuePanel tracks={queue} current={current} playTrack={t=>playTrack(t,true)} onClose={()=>setQueueOpen(false)}/>}
     {addTarget&&!createOpen&&<div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4"><section role="dialog" aria-label="Add to playlist" className="w-full max-w-sm rounded-lg bg-[#282828] p-5"><div className="flex justify-between"><h2 className="text-xl font-bold">Add to playlist</h2><button onClick={()=>setAddTarget(null)} aria-label="Close playlist picker"><X/></button></div>{playlists.map(p=><button key={p.id} onClick={()=>addToPlaylist(addTarget,p.id)} className="block w-full text-left rounded p-3 hover:bg-white/10">{p.name}</button>)}<button onClick={()=>setCreateOpen(true)} className="mt-4 rounded-full bg-white text-black font-bold px-4 py-2">New playlist</button></section></div>}
     {createOpen&&<CreateModal onClose={()=>setCreateOpen(false)} onCreate={createPlaylist}/>}

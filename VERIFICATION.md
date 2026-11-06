@@ -18,6 +18,16 @@ npm test: 14 passing tests covering query encoding, filtering, supported audio s
 
 Local production build passed. Deployment, fresh-clone and Android results are recorded with their final deliverables. Android device installation is not verified by a successful CI build.
 
-## Limits
+## Playback recovery fix — 6 November 2026
+
+The old service quarantined an entire instance after any playback error. A single unavailable recording, unsupported codec or failed media URL could therefore prevent other recordings from playing. Recording failures now remain local to that recording. API denials and genuine source outages retain request suppression. Saved instance URLs are normalized before lookup. During a temporary outage, the retry button counts down; after a denial it is hidden. Search refreshes to available fallback results rather than keeping stale source results. No alternative is played without the listener selecting it.
+
+20 automated tests pass, including six new regressions for recording errors, format/media failures, saved URL normalization, cooldown recovery, denied requests and removed videos. Controlled REA mobile evidence ev_cee0d75b841fbb27243009cc6edcc8da66732de9303b599a258f28a397eb078c exercised a failed recording followed by another recording reaching the playing state. Fixture audio is a generated test tone; this is a controlled regression test, not evidence of a commercial song's availability.
+
+REA desktop controlled outage evidence ev_e6879ee17691992cd4e0b1bc74a2960f47660f3290277a660e89592e5e5622ef verified automatic fallback results and a disabled retry countdown. Denial evidence ev_44fb07b3ec133609fea75da032745c8d749c2928a13bf90cbf39833e8e6a66b9 verified fallback results and no retry button. Each made one initial search and one video-details request to the simulated source, without repeated denied calls.
+
+The live approved instance returned HTTP 200 and five audio formats for the previously verified Guitar recording during diagnosis. That proves metadata availability at check time, not uninterrupted browser playback for every recording.
+
+## Availability limits
 
 No complete licensed commercial catalog is bundled. Browser playback depends on remote availability and restrictions. Local uploads are session-only. LocalStorage libraries belong to the current browser/origin; localhost, Netlify and Android have separate libraries. No paid backend or media proxy is deployed.
