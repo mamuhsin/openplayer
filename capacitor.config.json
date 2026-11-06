@@ -1,0 +1,7 @@
+{
+  "appId": "org.openplayer.music",
+  "appName": "OpenPlayer",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" },
+  "android": { "backgroundColor": "#000000" }
+}
