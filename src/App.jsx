@@ -21,6 +21,16 @@ const readStored = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback } catch { return fallback }
 }
 
+function playbackMessage(error) {
+  if (error.name === 'NotAllowedError') return 'Tap Play again to allow audio.'
+  if (error.sourceFailure) return 'The music service cannot play this recording right now. Available music has been refreshed below.'
+  if (error.name === 'TimeoutError') return 'This recording took too long to start. Retry playback or find available music.'
+  if (['NotSupportedError','NetworkError'].includes(error.name) || /No supported audio-only/.test(error.message)) {
+    return 'This recording has no playable audio right now. Try another recording.'
+  }
+  return error.message
+}
+
 function Art({ item, className = '', round = false, large = false, small = false, eager = false }) {
   const src = (small && item.thumbnail) || item.artwork
   if (src) return <img src={src} alt={item.title || item.name || ''} loading={eager ? 'eager' : 'lazy'} decoding="async" className={`object-cover shadow-xl ${round?'rounded-full':'rounded-[4px]'} ${className}`}/>
@@ -245,7 +255,7 @@ export default function App() {
   const [shuffle,setShuffle]=useState(false)
   const [repeat,setRepeat]=useState(0)
   const [volume,setVolume]=useState(()=>Math.max(0,Math.min(1,Number(localStorage.getItem('spotify-clone-volume')??.72)||0)))
-  const audioRef=useRef(null),playbackRequest=useRef(null),fileRef=useRef(null)
+  const audioRef=useRef(null),playbackRequest=useRef(null),startingPlayback=useRef(null),fileRef=useRef(null)
   const [catalog,setCatalog]=useState(()=>readStored('openplayer-catalog',[]).filter(t=>t.provider==='Invidious'||t.provider==='Audius'))
   const [results,setResults]=useState([])
   const [homeTracks,setHomeTracks]=useState([])
@@ -306,7 +316,12 @@ export default function App() {
     const a=audioRef.current
     const played=()=>{setIsPlaying(true);setPlayLoading(false);setPlayError('')}
     const paused=()=>setIsPlaying(false)
-    const failed=()=>{setIsPlaying(false);setPlayLoading(false);setPlayError('This recording is unavailable. Retry or search for another recording.')}
+    const failed=()=>{
+      if(startingPlayback.current || !a.error)return
+      setIsPlaying(false)
+      setPlayLoading(false)
+      setPlayError('This recording stopped. Retry playback or find available music.')
+    }
     a.addEventListener('playing',played);a.addEventListener('pause',paused);a.addEventListener('error',failed)
     return()=>{a.removeEventListener('playing',played);a.removeEventListener('pause',paused);a.removeEventListener('error',failed)}
   },[])
@@ -323,17 +338,18 @@ export default function App() {
   async function playTrack(track,force=false,list) {
     if(!track)return
     const a=audioRef.current
-    if(current?.id===track.id&&!force&&a.getAttribute('src')&&!playError){
+    if(current?.id===track.id&&!force&&!startingPlayback.current&&a.getAttribute('src')&&!a.error){
       if(!a.paused){a.pause();return}
-      try{await a.play()}catch(e){setPlayError(e.message)};return
+      try{await a.play()}catch(e){if(e.name!=='AbortError')setPlayError(playbackMessage(e))};return
     }
     playbackRequest.current?.abort()
     const request=new AbortController();playbackRequest.current=request
+    startingPlayback.current=request
     a.pause()
     if(a.hasAttribute('src')){a.removeAttribute('src');a.load()}
     setCurrent(track);setIsPlaying(false);setPlayLoading(true);setPlayError('');setPlayRetryAt(0)
     if(list?.length)setQueue(list)
-    else if(!force)setQueue(results.some(t=>t.id===track.id)?results:tracks.filter(t=>likedIds.includes(t.id)||t.id===track.id))
+    else if(!force&&current?.id!==track.id)setQueue(results.some(t=>t.id===track.id)?results:tracks.filter(t=>likedIds.includes(t.id)||t.id===track.id))
     let timer
     try{
       timer=setTimeout(()=>request.abort(new DOMException('Playback timed out. Retry or try another recording.','TimeoutError')),20000)
@@ -346,14 +362,17 @@ export default function App() {
     }catch(e){if(playbackRequest.current===request){
       setPlayLoading(false)
       if(e.name!=='AbortError'){
-        setPlayError(e.name==='NotAllowedError'?'Tap Play again to allow audio.':e.sourceFailure?'The music service cannot play this recording right now. Available music has been refreshed below.':/No supported audio-only/.test(e.message)?'This recording has no playable audio. Try another recording.':e.message)
+        setPlayError(playbackMessage(e))
         if(e.retryAfterMs!==undefined){
           setPlayRetryAt(Number.isFinite(e.retryAfterMs)?Date.now()+e.retryAfterMs:Infinity)
           musicService.clearCache();setRetryCount(v=>v+1)
         }
       }
     }}
-    finally{clearTimeout(timer)}
+    finally{
+      clearTimeout(timer)
+      if(startingPlayback.current===request)startingPlayback.current=null
+    }
   }
   function next(){if(!queue.length)return;const i=queue.findIndex(t=>t.id===current?.id);const choices=queue.filter(t=>t.id!==current?.id);const t=shuffle&&choices.length?choices[Math.floor(Math.random()*choices.length)]:queue[(i+1)%queue.length];playTrack(t,true)}
   const previous=()=>{const a=audioRef.current;if(a.currentTime>3){a.currentTime=0;return}const i=queue.findIndex(t=>t.id===current?.id);if(queue.length)playTrack(queue[(i-1+queue.length)%queue.length],true)}
@@ -382,7 +401,7 @@ export default function App() {
     <Player audioRef={audioRef} loading={playLoading} current={current} isPlaying={isPlaying} toggle={toggle} next={next} previous={previous} shuffle={shuffle} setShuffle={setShuffle} repeat={repeat} setRepeat={setRepeat} volume={volume} setVolume={setVolume} seek={seek} liked={current&&likedIds.includes(current.id)} toggleLike={toggleLike} setQueueOpen={setQueueOpen}/>
     <MobileNav page={page} setPage={setPage}/>
     {playLoading&&<div role="status" className="fixed bottom-32 left-4 z-[65] rounded bg-[#282828] p-3 text-sm">Loading audio…</div>}
-    {playError&&<PlaybackNotice message={playError} retryAt={playRetryAt} onRetry={()=>playTrack(current,true)} onAlternatives={alternatives} onDismiss={()=>setPlayError('')}/>}
+    {playError&&<PlaybackNotice message={playError} retryAt={playRetryAt} onRetry={()=>playTrack(current)} onAlternatives={alternatives} onDismiss={()=>setPlayError('')}/>}
     {queueOpen&&<QueuePanel tracks={queue} current={current} playTrack={t=>playTrack(t,true)} onClose={()=>setQueueOpen(false)}/>}
     {addTarget&&!createOpen&&<div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4"><section role="dialog" aria-label="Add to playlist" className="w-full max-w-sm rounded-lg bg-[#282828] p-5"><div className="flex justify-between"><h2 className="text-xl font-bold">Add to playlist</h2><button onClick={()=>setAddTarget(null)} aria-label="Close playlist picker"><X/></button></div>{playlists.map(p=><button key={p.id} onClick={()=>addToPlaylist(addTarget,p.id)} className="block w-full text-left rounded p-3 hover:bg-white/10">{p.name}</button>)}<button onClick={()=>setCreateOpen(true)} className="mt-4 rounded-full bg-white text-black font-bold px-4 py-2">New playlist</button></section></div>}
     {createOpen&&<CreateModal onClose={()=>setCreateOpen(false)} onCreate={createPlaylist}/>}

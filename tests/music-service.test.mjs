@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createMusicService } from '../src/music-service.mjs'
 const playable={adaptiveFormats:[{type:'audio/mp4',url:'https://media.test/song.mp4',bitrate:'128000'}]}
-const audio=()=>({src:'',pause(){},load(){},getAttribute(){return this.src},canPlayType(){return 'probably'},async play(){}})
+const audio=()=>({src:'',pause(){},load(){},getAttribute(){return this.src},removeAttribute(){this.src=''},canPlayType(){return 'probably'},async play(){}})
 const origin='https://verified.test'
 const inv={type:'video',videoId:'M7lc1UVf-VE',title:'Guitar',author:'Artist',lengthSeconds:120}
 const track={id:'abc',title:'Guitar',user:{name:'Artist'},is_streamable:true,duration:120}

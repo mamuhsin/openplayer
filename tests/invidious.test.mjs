@@ -33,7 +33,12 @@ test('audio selection excludes video, respects codec support and bitrate',()=>{
 })
 test('details endpoint supplies a fresh supported stream to the audio element',async()=>{
   let calls=0
-  const api=createInvidiousClient('https://instance.test',{fetchImpl:async url=>{calls++;assert.equal(url.pathname,`/api/v1/videos/${id}`);return json({title:'Song',lengthSeconds:90,adaptiveFormats:formats})}})
+  const api=createInvidiousClient('https://instance.test',{fetchImpl:async (url,options)=>{
+    calls++
+    assert.equal(url.pathname,`/api/v1/videos/${id}`)
+    assert.equal(options.cache,'no-store')
+    return json({title:'Song',lengthSeconds:90,adaptiveFormats:formats})
+  }})
   const audio=new FakeAudio()
   const stream=await api.playVideo(id,audio,{volume:.4})
   assert.equal(audio.src,'https://media.test/aac');assert.equal(audio.volume,.4);assert.equal(audio.paused,false);assert.equal(stream.duration,90)
@@ -58,6 +63,67 @@ test('new playback cancels stale selection even if fetch ignores abort',async()=
 })
 test('autoplay rejection reaches caller',async()=>{
   const api=createInvidiousClient('https://instance.test',{fetchImpl:async()=>json({adaptiveFormats:formats})})
-  const audio=new FakeAudio();audio.play=async()=>{throw new DOMException('Gesture required','NotAllowedError')}
+  const audio=new FakeAudio()
+  audio.canPlayType=()=> 'probably'
+  let attempts=0
+  audio.play=async()=>{attempts++;throw new DOMException('Gesture required','NotAllowedError')}
   await assert.rejects(api.playVideo(id,audio),{name:'NotAllowedError'})
+  assert.equal(attempts,1)
+  assert.equal(audio.src,'https://media.test/opus')
+})
+test('tries another codec when the browser rejects the preferred stream',async()=>{
+  const audio=new FakeAudio()
+  audio.canPlayType=()=> 'probably'
+  const attempted=[]
+  audio.play=async()=>{
+    attempted.push(audio.src)
+    if(audio.src.endsWith('/opus'))throw new DOMException('No supported source','NotSupportedError')
+    audio.paused=false
+  }
+  let requests=0
+  const api=createInvidiousClient('https://instance.test',{fetchImpl:async()=>{
+    requests++
+    return json({adaptiveFormats:[
+      ...formats,
+      {type:'audio/webm; codecs="opus"',url:'https://media.test/opus',bitrate:'150000'},
+      {type:'audio/mp4',url:'invalid',bitrate:'200000'},
+    ]})
+  }})
+  const stream=await api.playVideo(id,audio)
+  assert.deepEqual(attempted,['https://media.test/opus','https://media.test/aac'])
+  assert.equal(stream.url,audio.src)
+  assert.equal(audio.paused,false)
+  assert.equal(requests,1)
+})
+test('a stalled stream times out and another format can start',async()=>{
+  const audio=new FakeAudio()
+  audio.canPlayType=()=> 'probably'
+  const attempted=[]
+  audio.play=async()=>{
+    attempted.push(audio.src)
+    if(audio.src.endsWith('/opus'))await new Promise(()=>{})
+  }
+  const api=createInvidiousClient('https://instance.test',{
+    fetchImpl:async()=>json({adaptiveFormats:formats}),
+    mediaTimeoutMs:5,
+  })
+  // Keep the test process alive while the native abort timer is pending.
+  const keepAlive=setTimeout(()=>{},1000)
+  try{await api.playVideo(id,audio)}finally{clearTimeout(keepAlive)}
+  assert.deepEqual(attempted,['https://media.test/opus','https://media.test/aac'])
+})
+test('cancelled startup releases its source without trying another format',async()=>{
+  const audio=new FakeAudio()
+  audio.canPlayType=()=> 'probably'
+  const controller=new AbortController()
+  let attempts=0
+  audio.play=async()=>{
+    attempts++
+    controller.abort()
+    await new Promise(()=>{})
+  }
+  const api=createInvidiousClient('https://instance.test',{fetchImpl:async()=>json({adaptiveFormats:formats})})
+  await assert.rejects(api.playVideo(id,audio,{signal:controller.signal}),{name:'AbortError'})
+  assert.equal(attempts,1)
+  assert.equal(audio.src,'')
 })

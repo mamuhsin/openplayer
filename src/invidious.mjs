@@ -18,19 +18,44 @@ function httpUrl(value, base) {
 
 /** Select audio-only adaptive formats that this browser can decode, best bitrate first. */
 export function selectAudioFormats(details, audio) {
-  return (Array.isArray(details.adaptiveFormats) ? details.adaptiveFormats : [])
-    .filter(format => typeof format.type === 'string' && /^audio\//i.test(format.type) && typeof format.url === 'string')
-    .filter(format => !audio || ['probably', 'maybe'].includes(audio.canPlayType(format.type)))
-    .map(format => ({
-      url: httpUrl(format.url),
-      mimeType: format.type,
-      bitrate: Number(format.bitrate) || 0,
-      itag: String(format.itag ?? ''),
-    }))
-    .sort((a, b) => b.bitrate - a.bitrate)
+  const formats = []
+  for (const format of Array.isArray(details.adaptiveFormats) ? details.adaptiveFormats : []) {
+    if (typeof format?.type !== 'string' || !/^audio\//i.test(format.type) || typeof format.url !== 'string') continue
+    if (audio && !['probably', 'maybe'].includes(audio.canPlayType(format.type))) continue
+    try {
+      formats.push({
+        url: httpUrl(format.url),
+        mimeType: format.type,
+        bitrate: Number(format.bitrate) || 0,
+        itag: String(format.itag ?? ''),
+      })
+    } catch { /* A malformed entry shouldn't discard other streams. */ }
+  }
+  formats.sort((a, b) => b.bitrate - a.bitrate)
+  const seen = new Set()
+  return formats.filter(({ url }) => {
+    if (seen.has(url)) return false
+    seen.add(url)
+    return true
+  })
 }
 
-export function createInvidiousClient(instanceUrl, { fetchImpl = globalThis.fetch, timeoutMs = 15000 } = {}) {
+async function startAudio(audio, signal) {
+  signal.throwIfAborted()
+  let onAbort
+  const cancelled = new Promise((_, reject) => {
+    onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  try {
+    await Promise.race([audio.play(), cancelled])
+    signal.throwIfAborted()
+  } finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
+export function createInvidiousClient(instanceUrl, { fetchImpl = globalThis.fetch, timeoutMs = 15000, mediaTimeoutMs = 6500 } = {}) {
   const base = httpUrl(instanceUrl)
   if (typeof fetchImpl !== 'function') throw new TypeError('fetch is required')
 
@@ -42,7 +67,12 @@ export function createInvidiousClient(instanceUrl, { fetchImpl = globalThis.fetc
     combined.throwIfAborted()
     let response
     try {
-      response = await fetchImpl(url, { headers: { Accept: 'application/json' }, signal: combined, credentials: 'omit' })
+      response = await fetchImpl(url, {
+        headers: { Accept: 'application/json' },
+        signal: combined,
+        credentials: 'omit',
+        cache: path.startsWith('videos/') ? 'no-store' : 'default',
+      })
     } catch (error) {
       if (!signal?.aborted) error.sourceFailure = true
       throw error
@@ -115,15 +145,36 @@ export function createInvidiousClient(instanceUrl, { fetchImpl = globalThis.fetc
       combined.throwIfAborted()
       if (pendingPlayback.get(audio) !== controller) throw abortError()
       if (volume !== undefined) audio.volume = Math.max(0, Math.min(1, volume))
-      assignedUrl = stream.url
-      audio.src = stream.url
-      audio.preload = 'auto'
-      audio.load()
-      if (Number.isFinite(startTime) && startTime > 0) audio.currentTime = startTime
-      // play() rejects on blocked autoplay, unsupported media, or network failures.
-      await audio.play()
-      combined.throwIfAborted()
-      return stream
+      const codecs = new Set()
+      const preferred = [], remaining = []
+      for (const format of stream.formats) {
+        const group = codecs.has(format.mimeType) ? remaining : preferred
+        group.push(format)
+        codecs.add(format.mimeType)
+      }
+      const candidates = [...preferred, ...remaining].slice(0, 3)
+      let lastError
+      for (const format of candidates) {
+        combined.throwIfAborted()
+        assignedUrl = format.url
+        audio.src = format.url
+        audio.preload = 'auto'
+        audio.load()
+        if (Number.isFinite(startTime) && startTime > 0) audio.currentTime = startTime
+        const attempt = AbortSignal.any([combined, AbortSignal.timeout(mediaTimeoutMs)])
+        try {
+          await startAudio(audio, attempt)
+          return { ...stream, ...format }
+        } catch (error) {
+          combined.throwIfAborted()
+          if (error.name === 'NotAllowedError') throw error
+          const failedStream = ['NotSupportedError', 'NetworkError', 'TimeoutError'].includes(error.name)
+          if (!failedStream) throw error
+          lastError = error
+          cancel()
+        }
+      }
+      throw lastError
     } finally {
       combined.removeEventListener('abort', cancel)
       if (pendingPlayback.get(audio) === controller) pendingPlayback.delete(audio)
