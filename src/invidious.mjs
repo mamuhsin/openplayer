@@ -1,4 +1,5 @@
 // Invidious JSON API adapter. No direct media URLs are persisted or cached.
+import { startAudio, restorePosition } from './playback.mjs'
 const pendingPlayback = new WeakMap()
 const ID = /^[A-Za-z0-9_-]{11}$/
 const enumValue = (value, allowed, name) => {
@@ -38,21 +39,6 @@ export function selectAudioFormats(details, audio) {
     seen.add(url)
     return true
   })
-}
-
-async function startAudio(audio, signal) {
-  signal.throwIfAborted()
-  let onAbort
-  const cancelled = new Promise((_, reject) => {
-    onAbort = () => reject(signal.reason)
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
-  try {
-    await Promise.race([audio.play(), cancelled])
-    signal.throwIfAborted()
-  } finally {
-    signal.removeEventListener('abort', onAbort)
-  }
 }
 
 export function createInvidiousClient(instanceUrl, { fetchImpl = globalThis.fetch, timeoutMs = 15000, mediaTimeoutMs = 6500 } = {}) {
@@ -160,10 +146,10 @@ export function createInvidiousClient(instanceUrl, { fetchImpl = globalThis.fetc
         audio.src = format.url
         audio.preload = 'auto'
         audio.load()
-        if (Number.isFinite(startTime) && startTime > 0) audio.currentTime = startTime
         const attempt = AbortSignal.any([combined, AbortSignal.timeout(mediaTimeoutMs)])
         try {
           await startAudio(audio, attempt)
+          restorePosition(audio, startTime)
           return { ...stream, ...format }
         } catch (error) {
           combined.throwIfAborted()

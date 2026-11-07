@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getMusic, musicService } from './catalog'
 import UnifiedSearch from './UnifiedSearch'
+import { startAudio, restorePosition, watchAudioStalls, upcomingTracks, shuffledTracks } from './playback.mjs'
 import {
   Album, ArrowLeft, ArrowRight, Check, ChevronDown, CirclePlus, Clock3,
   Download, Ellipsis, FolderPlus, Heart, Home, Library, ListMusic, Maximize2,
@@ -161,7 +162,7 @@ function CollectionPage({ kind='playlist', title, description, tracks, playTrack
   </div>
 }
 
-function Player({ audioRef, loading, current, isPlaying, toggle, next, previous, shuffle, setShuffle, repeat, setRepeat, volume, setVolume, seek, liked, toggleLike, setQueueOpen }) {
+function Player({ audioRef, loading, current, isPlaying, toggle, next, canAdvance, previous, shuffle, setShuffle, repeat, setRepeat, volume, setVolume, seek, liked, toggleLike, setQueueOpen }) {
   const [muted,setMuted]=useState(false)
   const [expanded,setExpanded]=useState(false)
   const [position,setPosition]=useState({time:0,duration:0})
@@ -185,12 +186,12 @@ function Player({ audioRef, loading, current, isPlaying, toggle, next, previous,
   if (!current) return null
   return <>
     <div className="fixed bottom-[64px] left-2 right-2 z-50 flex h-14 items-center rounded-md bg-[#3b3b3b] px-2 shadow-xl md:hidden">
-      <Art item={current} className="h-11 w-11 shrink-0"/><button onClick={()=>setExpanded(true)} aria-label="Open player" className="min-w-0 flex-1 px-2 text-left"><div className="truncate text-sm font-semibold">{current.title}</div><div className="truncate text-xs text-[#ddd]">{current.artist}</div></button><button aria-label={liked?'Remove from Liked Songs':'Save to Liked Songs'} onClick={()=>toggleLike(current.id)} className={liked?'text-[#1ed760]':''}><Heart size={21} fill={liked?'currentColor':'none'}/></button><button aria-label={isPlaying?'Pause':'Play'} disabled={loading} onClick={toggle} className="ml-4">{isPlaying?<Pause size={25} fill="white"/>:<Play size={25} fill="white"/>}</button><div className="absolute bottom-0 left-0 h-[2px] rounded bg-white" style={{width:`${duration?progress/duration*100:0}%`}}/>
+      <Art item={current} className="h-11 w-11 shrink-0"/><button onClick={()=>setExpanded(true)} aria-label="Open player" className="min-w-0 flex-1 px-2 text-left"><div className="truncate text-sm font-semibold">{current.title}</div><div className="truncate text-xs text-[#ddd]">{current.artist}</div></button><button aria-label={liked?'Remove from Liked Songs':'Save to Liked Songs'} onClick={()=>toggleLike(current.id)} className={liked?'text-[#1ed760]':''}><Heart size={21} fill={liked?'currentColor':'none'}/></button><button aria-label={loading?'Cancel loading':isPlaying?'Pause':'Play'} onClick={toggle} className="ml-4">{loading?<X size={25}/>:isPlaying?<Pause size={25} fill="white"/>:<Play size={25} fill="white"/>}</button><div className="absolute bottom-0 left-0 h-[2px] rounded bg-white" style={{width:`${duration?progress/duration*100:0}%`}}/>
     </div>
     <footer className={`fixed bottom-0 left-0 right-0 z-[60] grid-cols-[minmax(180px,1fr)_minmax(300px,2fr)_minmax(180px,1fr)] items-center bg-black px-4 md:grid md:h-[92px] ${expanded?'flex h-full flex-col justify-center gap-12':'hidden h-[92px]'}`}>
       {expanded&&<button onClick={()=>setExpanded(false)} aria-label="Close player" className="absolute top-6 right-6 md:hidden"><ChevronDown size={30}/></button>}
       <div className="flex w-full min-w-0 items-center gap-3 md:w-auto"><Art item={current} className="h-14 w-14 shrink-0"/><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium hover:underline">{current.title}</div><div className="truncate text-xs text-[#b3b3b3] hover:underline">{current.artist}</div></div><IconButton label={liked?'Remove from Liked Songs':'Save to Liked Songs'} active={liked} onClick={()=>toggleLike(current.id)} className="ml-2 h-8 w-8"><Heart size={17} fill={liked?'currentColor':'none'}/></IconButton></div>
-      <div className="flex flex-col items-center"><div className="flex h-9 items-center gap-4"><IconButton label={shuffle?'Disable shuffle':'Enable shuffle'} active={shuffle} onClick={()=>setShuffle(v=>!v)}><Shuffle size={18}/></IconButton><IconButton label="Previous" onClick={previous}><SkipBack size={20} fill="currentColor"/></IconButton><button onClick={toggle} aria-label={isPlaying?'Pause':'Play'} disabled={loading} className="grid h-8 w-8 place-items-center rounded-full bg-white text-black transition hover:scale-105">{isPlaying?<Pause size={18} fill="black"/>:<Play size={18} fill="black" className="ml-[2px]"/>}</button><IconButton label="Next" onClick={next}><SkipForward size={20} fill="currentColor"/></IconButton><IconButton label={repeat===0?'Enable repeat':repeat===1?'Enable repeat one':'Disable repeat'} active={repeat>0} onClick={()=>setRepeat((repeat+1)%3)}>{repeat===2?<Repeat1 size={18}/>:<Repeat size={18}/>}</IconButton></div>
+      <div className="flex flex-col items-center"><div className="flex h-9 items-center gap-4"><IconButton label={shuffle?'Disable shuffle':'Enable shuffle'} active={shuffle} onClick={()=>setShuffle(v=>!v)}><Shuffle size={18}/></IconButton><IconButton label="Previous" onClick={previous}><SkipBack size={20} fill="currentColor"/></IconButton><button onClick={toggle} aria-label={loading?'Cancel loading':isPlaying?'Pause':'Play'} className="grid h-8 w-8 place-items-center rounded-full bg-white text-black transition hover:scale-105">{loading?<X size={18}/>:isPlaying?<Pause size={18} fill="black"/>:<Play size={18} fill="black" className="ml-[2px]"/>}</button><IconButton label="Next" onClick={next} disabled={!canAdvance}><SkipForward size={20} fill="currentColor"/></IconButton><IconButton label={repeat===0?'Enable repeat':repeat===1?'Enable repeat one':'Disable repeat'} active={repeat>0} onClick={()=>setRepeat((repeat+1)%3)}>{repeat===2?<Repeat1 size={18}/>:<Repeat size={18}/>}</IconButton></div>
         <div className="flex w-full max-w-[630px] items-center gap-2 text-[11px] text-[#b3b3b3]"><span className="w-10 text-right">{loading?'…':fmt(progress)}</span><input aria-label="Seek" className="range w-full" style={{'--value':`${duration?progress/duration*100:0}%`}} type="range" min="0" max={duration||1} step="0.1" value={Math.min(progress,duration||0)} onChange={e=>seek(Number(e.target.value))}/><span className="w-10">{fmt(duration)}</span></div>
       </div>
       <div className="flex justify-end gap-3"><IconButton label="Queue" onClick={()=>{setExpanded(false);setQueueOpen(v=>!v)}}><ListMusic size={18}/></IconButton><IconButton label={muted?'Unmute':'Mute'} onClick={mute}>{muted||volume===0?<VolumeX size={18}/>:volume<.5?<Volume1 size={18}/>:<Volume2 size={18}/>}</IconButton><input aria-label="Volume" className="range w-24" style={{'--value':`${muted?0:volume*100}%`}} type="range" min="0" max="1" step="0.01" value={muted?0:volume} onChange={e=>{setMuted(false);setVolume(Number(e.target.value))}}/></div>
@@ -252,10 +253,14 @@ export default function App() {
   const [queue,setQueue]=useState([])
   const [isPlaying,setIsPlaying]=useState(false)
   const [playLoading,setPlayLoading]=useState(false)
+  const [reconnecting,setReconnecting]=useState(false)
   const [shuffle,setShuffle]=useState(false)
   const [repeat,setRepeat]=useState(0)
   const [volume,setVolume]=useState(()=>Math.max(0,Math.min(1,Number(localStorage.getItem('spotify-clone-volume')??.72)||0)))
   const audioRef=useRef(null),playbackRequest=useRef(null),startingPlayback=useRef(null),fileRef=useRef(null)
+  const recoveryUsed=useRef(false)
+  const onPlaybackFault=useRef(null)
+  const originalQueue=useRef([])
   const [catalog,setCatalog]=useState(()=>readStored('openplayer-catalog',[]).filter(t=>t.provider==='Invidious'||t.provider==='Audius'))
   const [results,setResults]=useState([])
   const [homeTracks,setHomeTracks]=useState([])
@@ -316,67 +321,144 @@ export default function App() {
     const a=audioRef.current
     const played=()=>{setIsPlaying(true);setPlayLoading(false);setPlayError('')}
     const paused=()=>setIsPlaying(false)
-    const failed=()=>{
-      if(startingPlayback.current || !a.error)return
-      setIsPlaying(false)
-      setPlayLoading(false)
-      setPlayError('This recording stopped. Retry playback or find available music.')
-    }
+    const failed=()=>{if(a.error)onPlaybackFault.current(a.currentTime,true)}
+    const stopWatching=watchAudioStalls(a,position=>onPlaybackFault.current(position))
     a.addEventListener('playing',played);a.addEventListener('pause',paused);a.addEventListener('error',failed)
-    return()=>{a.removeEventListener('playing',played);a.removeEventListener('pause',paused);a.removeEventListener('error',failed)}
+    return()=>{
+      stopWatching()
+      a.removeEventListener('playing',played);a.removeEventListener('pause',paused);a.removeEventListener('error',failed)
+    }
   },[])
+  const upcoming=useMemo(()=>upcomingTracks(queue,current?.id,repeat===1),[queue,current,repeat])
   useEffect(()=>{
     const a=audioRef.current
     const ended=()=>{
-      const index=queue.findIndex(t=>t.id===current?.id)
-      if(repeat===2){a.currentTime=0;a.play().catch(e=>setPlayError(e.message))}
-      else if(index<queue.length-1||repeat===1)next()
+      if(startingPlayback.current||!a.ended)return
+      if(current&&(repeat===2||(repeat===1&&queue.length===1))){
+        a.currentTime=0
+        playTrack(current)
+      }
+      else if(upcoming.length)next()
       else setIsPlaying(false)
     }
     a.addEventListener('ended',ended);return()=>a.removeEventListener('ended',ended)
-  },[queue,current,repeat,shuffle])
-  async function playTrack(track,force=false,list) {
+  },[upcoming,current,repeat,queue.length])
+
+  function setPlaybackQueue(list, track) {
+    originalQueue.current=list
+    setQueue(shuffle?[track,...shuffledTracks(list.filter(item=>item.id!==track.id))]:list)
+  }
+
+  function toggleShuffle() {
+    const enabled=!shuffle
+    setShuffle(enabled)
+    setQueue(order=>{
+      const currentIndex=order.findIndex(track=>track.id===current?.id)
+      const played=order.slice(0,currentIndex+1)
+      const remaining=order.slice(currentIndex+1)
+      if(enabled)return played.concat(shuffledTracks(remaining))
+      const ids=new Set(remaining.map(track=>track.id))
+      return played.concat(originalQueue.current.filter(track=>ids.has(track.id)))
+    })
+  }
+
+  async function playTrack(track,force=false,list,{startTime=0,recovering=false,following=[]}={}) {
     if(!track)return
     const a=audioRef.current
-    if(current?.id===track.id&&!force&&!startingPlayback.current&&a.getAttribute('src')&&!a.error){
-      if(!a.paused){a.pause();return}
-      try{await a.play()}catch(e){if(e.name!=='AbortError')setPlayError(playbackMessage(e))};return
-    }
+    const resume=current?.id===track.id&&!force&&!startingPlayback.current&&a.getAttribute('src')&&!a.error
+    if(resume&&!a.paused){a.pause();return}
+
     playbackRequest.current?.abort()
     const request=new AbortController();playbackRequest.current=request
     startingPlayback.current=request
-    a.pause()
-    if(a.hasAttribute('src')){a.removeAttribute('src');a.load()}
-    setCurrent(track);setIsPlaying(false);setPlayLoading(true);setPlayError('');setPlayRetryAt(0)
-    if(list?.length)setQueue(list)
-    else if(!force&&current?.id!==track.id)setQueue(results.some(t=>t.id===track.id)?results:tracks.filter(t=>likedIds.includes(t.id)||t.id===track.id))
-    let timer
+    if(!recovering)recoveryUsed.current=false
+    setIsPlaying(false);setPlayLoading(true);setReconnecting(recovering);setPlayError('');setPlayRetryAt(0)
+    if(list?.length)setPlaybackQueue(list,track)
+    else if(!force&&current?.id!==track.id){
+      const context=results.some(t=>t.id===track.id)?results:tracks.filter(t=>likedIds.includes(t.id)||t.id===track.id)
+      setPlaybackQueue(context,track)
+    }
+
+    const timeout=following.length?24000:20000
+    const signal=AbortSignal.any([request.signal,AbortSignal.timeout(timeout)])
     try{
-      timer=setTimeout(()=>request.abort(new DOMException('Playback timed out. Retry or try another recording.','TimeoutError')),20000)
-      if(track.provider==='Invidious')await musicService.play(track,a,{volume,signal:request.signal})
-      else {
-        a.src=track.src;a.currentTime=0;a.volume=volume;a.load()
-        await Promise.race([a.play(),new Promise((_,reject)=>request.signal.addEventListener('abort',()=>{a.pause();reject(request.signal.reason)},{once:true}))])
+      if(resume){
+        await startAudio(a,signal)
+        return
       }
-      if(playbackRequest.current===request)setPlayLoading(false)
-    }catch(e){if(playbackRequest.current===request){
-      setPlayLoading(false)
-      if(e.name!=='AbortError'){
-        setPlayError(playbackMessage(e))
-        if(e.retryAfterMs!==undefined){
-          setPlayRetryAt(Number.isFinite(e.retryAfterMs)?Date.now()+e.retryAfterMs:Infinity)
-          musicService.clearCache();setRetryCount(v=>v+1)
+      const candidates=[track,...following]
+      for(let index=0;index<candidates.length;index++){
+        signal.throwIfAborted()
+        const candidate=candidates[index]
+        setCurrent(candidate)
+        a.pause()
+        if(a.hasAttribute('src')){a.removeAttribute('src');a.load()}
+        const position=index===0?startTime:0
+        const attempt=index<candidates.length-1
+          ? AbortSignal.any([signal,AbortSignal.timeout(10000)])
+          : signal
+        try{
+          if(candidate.provider==='Invidious'){
+            await musicService.play(candidate,a,{signal:attempt,startTime:position})
+          }else{
+            a.src=candidate.src
+            a.load()
+            await startAudio(a,attempt)
+            restorePosition(a,position)
+          }
+          return
+        }catch(error){
+          signal.throwIfAborted()
+          if(error.name==='NotAllowedError'||error.name==='AbortError'||index===candidates.length-1)throw error
         }
       }
-    }}
-    finally{
-      clearTimeout(timer)
-      if(startingPlayback.current===request)startingPlayback.current=null
+    }catch(error){
+      if(playbackRequest.current!==request)return
+      a.pause()
+      if(error.name==='AbortError'||error.name==='TimeoutError'){
+        a.removeAttribute('src')
+        a.load()
+      }
+      if(error.name==='AbortError')return
+      setPlayError(playbackMessage(error))
+      if(error.retryAfterMs!==undefined){
+        setPlayRetryAt(Number.isFinite(error.retryAfterMs)?Date.now()+error.retryAfterMs:Infinity)
+        musicService.clearCache();setRetryCount(v=>v+1)
+      }
+    }finally{
+      if(startingPlayback.current===request){
+        startingPlayback.current=null
+        setPlayLoading(false);setReconnecting(false)
+      }
     }
   }
-  function next(){if(!queue.length)return;const i=queue.findIndex(t=>t.id===current?.id);const choices=queue.filter(t=>t.id!==current?.id);const t=shuffle&&choices.length?choices[Math.floor(Math.random()*choices.length)]:queue[(i+1)%queue.length];playTrack(t,true)}
-  const previous=()=>{const a=audioRef.current;if(a.currentTime>3){a.currentTime=0;return}const i=queue.findIndex(t=>t.id===current?.id);if(queue.length)playTrack(queue[(i-1+queue.length)%queue.length],true)}
-  const toggle=()=>playTrack(current||results[0])
+  onPlaybackFault.current=(position,mediaError=false)=>{
+    const a=audioRef.current
+    if(!current||startingPlayback.current||a.ended||(!mediaError&&a.paused))return
+    if(!current.uploaded&&!recoveryUsed.current&&(isPlaying||!a.paused)){
+      recoveryUsed.current=true
+      playTrack(current,true,undefined,{startTime:position,recovering:true})
+      return
+    }
+    a.pause()
+    a.removeAttribute('src')
+    a.load()
+    setIsPlaying(false)
+    setPlayError('Playback stopped. Retry this recording or select the next track.')
+  }
+  function next(){
+    if(upcoming.length)playTrack(upcoming[0],true,undefined,{following:upcoming.slice(1,3)})
+  }
+  const previous=()=>{
+    const a=audioRef.current
+    const index=queue.findIndex(t=>t.id===current?.id)
+    if(a.currentTime>3||index===0){a.currentTime=0;return}
+    if(index>0)playTrack(queue[index-1],true)
+  }
+  const toggle=()=>{
+    if(startingPlayback.current){playbackRequest.current?.abort();return}
+    playTrack(current||results[0])
+  }
   const seek=v=>{if(Number.isFinite(audioRef.current.duration))audioRef.current.currentTime=v}
   const toggleLike=id=>setLikedIds(v=>v.includes(id)?v.filter(x=>x!==id):[...v,id])
   const addToPlaylist=(track,playlistId)=>{setPlaylists(v=>v.map(p=>p.id===playlistId?{...p,trackIds:[...new Set([...(p.trackIds||[]),track.id])]}:p));setAddTarget(null);setPage({type:'playlist',id:playlistId})}
@@ -392,17 +474,17 @@ export default function App() {
   else if(page.type==='liked'||page.type==='playlist'){
     const p=playlists.find(x=>x.id===page.id)
     const list=page.type==='liked'?tracks.filter(t=>likedIds.includes(t.id)):p?tracks.filter(t=>p.trackIds.includes(t.id)):homeTracks
-    content=<CollectionPage kind={page.type} title={page.type==='liked'?'Liked Songs':p?.name||'Discover music'} description="Your music, your library." tracks={list} playTrack={(t)=>playTrack(t,false,list)} current={current} isPlaying={isPlaying} likedIds={likedIds} toggleLike={toggleLike} setPage={setPage} shuffle={shuffle} setShuffle={setShuffle}/>
+    content=<CollectionPage kind={page.type} title={page.type==='liked'?'Liked Songs':p?.name||'Discover music'} description="Your music, your library." tracks={list} playTrack={(t)=>playTrack(t,false,list)} current={current} isPlaying={isPlaying} likedIds={likedIds} toggleLike={toggleLike} setPage={setPage} shuffle={shuffle} setShuffle={toggleShuffle}/>
   }else content=<><div className="px-6 pt-4 text-sm text-[#b3b3b3]">Discover music{busy?' · Loading…':''}{status&&<p role="status" className="mt-2">{status}</p>}{musicError&&<p role="alert">{musicError}</p>}{musicError&&<button onClick={retry} className="underline mt-2">Retry search</button>}</div><HomePage tracks={homeTracks} current={current} isPlaying={isPlaying} playTrack={(t)=>playTrack(t,false,homeTracks)} setPage={setPage}/></>
   return <div className="h-full bg-black text-white">
     <audio ref={audioRef} preload="metadata" data-testid="audio-engine"/>
     <TopBar page={page} setPage={setPage} query={query} setQuery={q=>{setQuery(q);setAudiusOnly(false)}}/>
     <div className="flex h-[calc(100%-64px)] gap-2 px-0 pb-0 md:px-2 md:pb-[100px]"><Sidebar page={page} setPage={setPage} playlists={playlists} setCreateOpen={setCreateOpen} onUpload={()=>fileRef.current?.click()}/><main className="spotify-scroll min-w-0 flex-1 overflow-y-auto rounded-none bg-[#121212] md:rounded-lg">{content}</main></div>
-    <Player audioRef={audioRef} loading={playLoading} current={current} isPlaying={isPlaying} toggle={toggle} next={next} previous={previous} shuffle={shuffle} setShuffle={setShuffle} repeat={repeat} setRepeat={setRepeat} volume={volume} setVolume={setVolume} seek={seek} liked={current&&likedIds.includes(current.id)} toggleLike={toggleLike} setQueueOpen={setQueueOpen}/>
+    <Player audioRef={audioRef} loading={playLoading} current={current} isPlaying={isPlaying} toggle={toggle} next={next} canAdvance={upcoming.length>0} previous={previous} shuffle={shuffle} setShuffle={toggleShuffle} repeat={repeat} setRepeat={setRepeat} volume={volume} setVolume={setVolume} seek={seek} liked={current&&likedIds.includes(current.id)} toggleLike={toggleLike} setQueueOpen={setQueueOpen}/>
     <MobileNav page={page} setPage={setPage}/>
-    {playLoading&&<div role="status" className="fixed bottom-32 left-4 z-[65] rounded bg-[#282828] p-3 text-sm">Loading audio…</div>}
+    {playLoading&&<div role="status" className="fixed bottom-32 left-4 z-[65] rounded bg-[#282828] p-3 text-sm">{reconnecting?'Reconnecting audio…':'Loading audio…'}</div>}
     {playError&&<PlaybackNotice message={playError} retryAt={playRetryAt} onRetry={()=>playTrack(current)} onAlternatives={alternatives} onDismiss={()=>setPlayError('')}/>}
-    {queueOpen&&<QueuePanel tracks={queue} current={current} playTrack={t=>playTrack(t,true)} onClose={()=>setQueueOpen(false)}/>}
+    {queueOpen&&<QueuePanel tracks={upcoming} current={current} playTrack={t=>playTrack(t,t.id!==current?.id)} onClose={()=>setQueueOpen(false)}/>}
     {addTarget&&!createOpen&&<div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4"><section role="dialog" aria-label="Add to playlist" className="w-full max-w-sm rounded-lg bg-[#282828] p-5"><div className="flex justify-between"><h2 className="text-xl font-bold">Add to playlist</h2><button onClick={()=>setAddTarget(null)} aria-label="Close playlist picker"><X/></button></div>{playlists.map(p=><button key={p.id} onClick={()=>addToPlaylist(addTarget,p.id)} className="block w-full text-left rounded p-3 hover:bg-white/10">{p.name}</button>)}<button onClick={()=>setCreateOpen(true)} className="mt-4 rounded-full bg-white text-black font-bold px-4 py-2">New playlist</button></section></div>}
     {createOpen&&<CreateModal onClose={()=>setCreateOpen(false)} onCreate={createPlaylist}/>}
     <input ref={fileRef} type="file" accept="audio/*" className="hidden" onChange={handleUpload}/>
