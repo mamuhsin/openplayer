@@ -362,7 +362,7 @@ export default function App() {
     })
   }
 
-  async function playTrack(track,force=false,list,{startTime=0,recovering=false,following=[]}={}) {
+  async function playTrack(track,force=false,list,{startTime=0,recovering=false,following=[],advancing=false}={}) {
     if(!track)return
     const a=audioRef.current
     const resume=current?.id===track.id&&!force&&!startingPlayback.current&&a.getAttribute('src')&&!a.error
@@ -420,7 +420,13 @@ export default function App() {
         a.load()
       }
       if(error.name==='AbortError')return
-      setPlayError(playbackMessage(error))
+      if(advancing&&error.name!=='NotAllowedError'){
+        setPlayError(error.name==='TimeoutError'
+          ? 'The queue took too long to start another recording.'
+          : 'The remaining recordings in this queue could not play.')
+      }else{
+        setPlayError(playbackMessage(error))
+      }
       if(error.retryAfterMs!==undefined){
         setPlayRetryAt(Number.isFinite(error.retryAfterMs)?Date.now()+error.retryAfterMs:Infinity)
         musicService.clearCache();setRetryCount(v=>v+1)
@@ -447,7 +453,7 @@ export default function App() {
     setPlayError('Playback stopped. Retry this recording or select the next track.')
   }
   function next(){
-    if(upcoming.length)playTrack(upcoming[0],true,undefined,{following:upcoming.slice(1,3)})
+    if(upcoming.length)playTrack(upcoming[0],true,undefined,{following:upcoming.slice(1),advancing:true})
   }
   const previous=()=>{
     const a=audioRef.current
