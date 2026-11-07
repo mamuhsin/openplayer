@@ -13,6 +13,17 @@ test('healthy instance is preferred and recent search uses documented date param
   const result=await service.search('മലയാളം',{latest:true});assert.equal(result.provider,'Invidious');assert.equal(result.fallback,false)
   await service.search('മലയാളം',{latest:true});assert.equal(calls,1)
 })
+test('instant cached results respect search options and expire without making a request',async()=>{
+  let time=0,calls=0
+  const service=createMusicService({instances:[origin],now:()=>time,fetchImpl:async()=>{calls++;return response([inv])}})
+  const result=await service.search('Guitar',{latest:true})
+  assert.equal(service.getCachedSearch(' guitar ',{latest:true}),result)
+  assert.equal(service.getCachedSearch('guitar'),undefined)
+  assert.equal(service.getCachedSearch('guitar',{latest:true,audiusOnly:true}),undefined)
+  time=300000
+  assert.equal(service.getCachedSearch('guitar',{latest:true}),undefined)
+  assert.equal(calls,1)
+})
 test('403 falls back and denied instance is not called again even after refresh',async()=>{
   let invCalls=0
   const service=createMusicService({instances:[origin],fetchImpl:async url=>{if(String(url).startsWith(origin)){invCalls++;return {ok:false,status:403}}return response({data:[track]})}})

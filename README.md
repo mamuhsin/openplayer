@@ -1,6 +1,6 @@
 # OpenPlayer
 
-A free, open-source React + Vite + Tailwind music player with Home, Search and Library. No account, subscription or user API key is required.
+A free, open-source music player with Home, Search and Library. It uses React components with Preact's compatibility runtime, Vite and Tailwind. No account, subscription or user API key is required.
 
 ## Start
 

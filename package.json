@@ -13,14 +13,17 @@
     "@capacitor/android": "^7.6.10",
     "@capacitor/cli": "^7.6.10",
     "@capacitor/core": "^7.6.10",
-    "@vitejs/plugin-react": "latest",
     "autoprefixer": "latest",
     "lucide-react": "latest",
     "postcss": "latest",
+    "preact": "11.2.0",
     "react": "latest",
     "react-dom": "latest",
     "tailwindcss": "^3.4.17",
     "typescript": "latest",
     "vite": "latest"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "2.10.6"
   }
 }

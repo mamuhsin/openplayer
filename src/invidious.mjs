@@ -77,6 +77,7 @@ export function createInvidiousClient(instanceUrl, { fetchImpl = globalThis.fetc
       artist: item.author || 'Unknown uploader', // Uploader, not verified artist credit.
       album: 'Online music', duration: Number(item.lengthSeconds) || 0,
       artwork: item.videoThumbnails?.find(t => t.quality === 'medium')?.url || item.videoThumbnails?.[0]?.url || null,
+      thumbnail: item.videoThumbnails?.find(t => t.quality === 'default')?.url,
       sourceUrl: new URL(`/watch?v=${item.videoId}`, base).href,
       views: Number(item.viewCount) || 0, published: item.published ?? null,
       liveNow: Boolean(item.liveNow), color: ['#164e63', '#4c1d95'],

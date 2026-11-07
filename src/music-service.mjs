@@ -1,6 +1,13 @@
 import { createInvidiousClient } from './invidious.mjs'
 export function normalizeAudius(t) {
-  return { id:`audius-${t.id}`, remoteId:t.id, provider:'Audius', title:t.title, artist:t.user?.name||'Unknown artist', album:t.album_backlink?.playlist_name||t.genre||'Single', duration:t.duration||0, artwork:t.artwork?.['480x480'], src:`https://api.audius.co/v1/tracks/${encodeURIComponent(t.id)}/stream?app_name=OpenPlayer`, sourceUrl:`https://audius.co${t.permalink||''}`, published:Date.parse(t.release_date||t.created_at||'')/1000||0, color:['#164e63','#4c1d95'] }
+  return {
+    id:`audius-${t.id}`, remoteId:t.id, provider:'Audius', title:t.title,
+    artist:t.user?.name||'Unknown artist', album:t.album_backlink?.playlist_name||t.genre||'Single',
+    duration:t.duration||0, artwork:t.artwork?.['480x480'], thumbnail:t.artwork?.['150x150'],
+    src:`https://api.audius.co/v1/tracks/${encodeURIComponent(t.id)}/stream?app_name=OpenPlayer`,
+    sourceUrl:`https://audius.co${t.permalink||''}`,
+    published:Date.parse(t.release_date||t.created_at||'')/1000||0, color:['#164e63','#4c1d95'],
+  }
 }
 // Only origins verified for search, CORS and real audio playback belong here.
 export function createMusicService({instances=[],fetchImpl=globalThis.fetch,now=Date.now,timeoutMs=10000}={}) {
@@ -19,10 +26,22 @@ export function createMusicService({instances=[],fetchImpl=globalThis.fetch,now=
     return latest?tracks.sort((a,b)=>b.published-a.published):tracks
   }
   function remember(key,result){if(cache.size>=30)cache.delete(cache.keys().next().value);cache.set(key,{result,expires:now()+300000})}
+  const searchKey=(query,latest,audiusOnly)=>JSON.stringify([query.trim().toLowerCase(),latest,audiusOnly])
+  function getCachedSearch(query='',{latest=false,audiusOnly=false}={}) {
+    const key=searchKey(query,latest,audiusOnly)
+    const entry=cache.get(key)
+    if(!entry)return
+    if(entry.expires<=now()||(entry.result.provider==='Invidious'&&!usable(entry.result.tracks[0]?.instanceUrl))){
+      cache.delete(key)
+      return
+    }
+    return entry.result
+  }
   async function search(query='',{signal,latest=false,audiusOnly=false}={}) {
     query=query.trim();signal?.throwIfAborted()
-    const key=JSON.stringify([query.toLowerCase(),latest,audiusOnly]),hit=cache.get(key)
-    if(hit&&hit.expires>now()&&(hit.result.provider!=='Invidious'||usable(hit.result.tracks[0]?.instanceUrl)))return hit.result
+    const key=searchKey(query,latest,audiusOnly)
+    const cached=getCachedSearch(query,{latest,audiusOnly})
+    if(cached)return cached
     if(!audiusOnly)for(const [origin,client] of clients) {
       if(!usable(origin))continue
       try {
@@ -48,5 +67,5 @@ export function createMusicService({instances=[],fetchImpl=globalThis.fetch,now=
       throw e
     }
   }
-  return {search,play,clearCache:()=>cache.clear()}
+  return {search,getCachedSearch,play,clearCache:()=>cache.clear()}
 }
