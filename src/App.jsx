@@ -3,11 +3,9 @@ import { getMusic, musicService } from './catalog'
 import UnifiedSearch from './UnifiedSearch'
 import { startAudio, restorePosition, watchAudioStalls, upcomingTracks, shuffledTracks } from './playback.mjs'
 import {
-  Album, ArrowLeft, ArrowRight, Check, ChevronDown, CirclePlus, Clock3,
-  Download, Ellipsis, FolderPlus, Heart, Home, Library, ListMusic, Maximize2,
-  Menu, Mic2, MonitorSpeaker, MoreHorizontal, Music2, Pause, Play, Plus,
-  Repeat, Repeat1, Search, Shuffle, SkipBack, SkipForward, Speaker,
-  Upload, UserRound, Volume1, Volume2, VolumeX, X, Zap,
+  Archive, ChevronDown, ChevronLeft, ChevronRight, Clock3, Heart, Home, Library, ListMusic, Music2,
+  Pause, Play, Plus, Repeat, Repeat1, Search, Shuffle, SkipBack, SkipForward,
+  Volume1, Volume2, VolumeX, X,
 } from 'lucide-react'
 
 const EMPTY_TRACK = {title:'',album:'',color:['#282828','#111827']}
@@ -33,16 +31,16 @@ function playbackMessage(error) {
 }
 
 function Art({ item, className = '', round = false, large = false, small = false, eager = false }) {
-  const src = (small && item.thumbnail) || item.artwork
-  if (src) return <img src={src} alt={item.title || item.name || ''} loading={eager ? 'eager' : 'lazy'} decoding="async" className={`object-cover shadow-xl ${round?'rounded-full':'rounded-[4px]'} ${className}`}/>
+  const [failed,setFailed]=useState([])
+  const src = (small ? [item.thumbnail,item.artwork] : [item.artwork,item.thumbnail]).find(url=>url&&!failed.includes(url))
   const colors = item.color || ['#334155','#9333ea']
   return (
     <div className={`relative overflow-hidden shadow-xl ${round ? 'rounded-full' : 'rounded-[4px]'} ${className}`}
       style={{ background: `linear-gradient(145deg, ${colors[0]}, ${colors[1]})` }}>
       <div className="absolute -right-[18%] -bottom-[28%] h-[80%] w-[80%] rotate-12 rounded-[18%] border border-white/20 bg-white/10" />
       <div className="absolute left-[12%] top-[12%] h-[28%] w-[28%] rounded-full bg-white/10 blur-xl" />
-      <span className={`absolute inset-0 grid place-items-center font-black tracking-[-.08em] text-white/90 ${large ? 'text-7xl' : 'text-4xl'}`}>{item.glyph || item.title?.slice(0,1)}</span>
-      {!round && <span className="absolute bottom-3 left-3 right-3 text-[10px] font-bold uppercase tracking-[.16em] text-white/70">{item.album || item.title}</span>}
+      <span aria-hidden="true" className={`absolute inset-0 grid place-items-center font-black tracking-[-.08em] text-white/90 ${large ? 'text-7xl' : 'text-2xl'}`}>{item.glyph || (item.title || item.name)?.slice(0,1)}</span>
+      {src && <img key={src} src={src} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" className="absolute inset-0 h-full w-full object-cover" onError={()=>setFailed(urls=>[...urls,src])}/>}
     </div>
   )
 }
@@ -55,18 +53,17 @@ function IconButton({ label, children, active, onClick, disabled = false, classN
 
 function TopBar({ page, setPage, query, setQuery }) {
   return (
-    <header className="h-16 shrink-0 bg-black px-2 md:px-4 flex items-center gap-2 md:gap-3 relative z-40">
-      <button onClick={() => setPage({ type:'home' })} aria-label="OpenPlayer home" className="mx-2 hidden h-10 w-10 place-items-center rounded-full bg-white text-black md:grid"><Music2 className="h-6 w-6" /></button>
-      <IconButton label="Back to Home" onClick={() => setPage({type:'home'})} className="hidden h-10 w-10 bg-[#1f1f1f] md:grid"><ArrowLeft size={22}/></IconButton>
+    <header className="relative z-40 flex h-16 shrink-0 items-center gap-2 bg-black px-2 md:px-4">
+      <button onClick={() => setPage({ type:'home' })} aria-label="OpenPlayer home" className="mx-3 mr-5 hidden h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-black md:grid"><Music2 size={20}/></button>
       <button onClick={() => setPage({ type:'home' })} aria-label="Home" className={`grid h-12 w-12 shrink-0 place-items-center rounded-full transition ${page.type === 'home' ? 'bg-[#2a2a2a] text-white' : 'bg-[#1f1f1f] text-[#b3b3b3] hover:text-white'}`}><Home size={25} fill={page.type === 'home' ? 'currentColor' : 'none'}/></button>
-      <div className="relative flex h-12 min-w-0 max-w-[475px] flex-1 items-center rounded-full bg-[#242424] ring-2 ring-transparent transition focus-within:bg-[#2a2a2a] focus-within:ring-white hover:bg-[#2a2a2a]">
+      <div role="search" className="relative flex h-12 min-w-0 max-w-[475px] flex-1 items-center rounded-full bg-[#1f1f1f] ring-2 ring-transparent transition focus-within:bg-[#2a2a2a] focus-within:ring-white hover:bg-[#2a2a2a]">
         <Search className="ml-3 shrink-0 text-[#b3b3b3]" size={25}/>
         <input value={query} onChange={e => { setQuery(e.target.value); setPage({ type:'search' }) }} onFocus={() => setPage({ type:'search' })}
-          className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm font-medium outline-none placeholder:text-[#b3b3b3]" placeholder="What do you want to play?" aria-label="Search" />
+          className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-[#b3b3b3] md:text-[15px]" placeholder="What do you want to play?" aria-label="Search" />
         {query && <button onClick={() => setQuery('')} className="mr-2 text-[#b3b3b3] hover:text-white" aria-label="Clear search"><X size={20}/></button>}
-        <span className="mr-3 hidden border-l border-[#777] pl-3 text-[#b3b3b3] sm:block"><Album size={22}/></span>
+        <button onClick={()=>setPage({type:'search',query:''})} aria-label="Browse music" className="mr-4 hidden border-l border-[#777] pl-3 text-[#b3b3b3] hover:text-white md:block"><Archive size={22}/></button>
       </div>
-      <nav className="ml-auto hidden items-center gap-4 text-sm font-bold text-[#b3b3b3] md:flex">{[['home','Home'],['search','Search'],['library','Library']].map(([type,label])=><button key={type} onClick={()=>setPage({type})} className={page.type===type?'text-white':'hover:text-white'}>{label}</button>)}</nav>
+      <nav aria-label="Library" className="ml-auto hidden items-center text-sm font-bold md:flex"><button onClick={()=>setPage({type:'library'})} className={page.type==='library'?'text-white':'text-[#b3b3b3] hover:text-white'}>Your Library</button></nav>
     </header>
   )
 }
@@ -97,67 +94,91 @@ function Sidebar({ page, setPage, playlists, setCreateOpen, onUpload }) {
 }
 
 function PlayDot({ playing, onClick, label='Play' }) {
-  return <button onClick={e => { e.stopPropagation(); onClick() }} aria-label={label} className="card-play absolute bottom-2 right-2 grid h-12 w-12 place-items-center rounded-full bg-[#1ed760] text-black shadow-xl hover:scale-105 hover:bg-[#3be477]">{playing ? <Pause size={22} fill="black"/> : <Play size={22} fill="black" className="ml-1"/>}</button>
+  return <button onClick={onClick} aria-label={label} className="card-play absolute bottom-2 right-2 z-20 grid h-12 w-12 place-items-center rounded-full bg-[#1ed760] text-black shadow-xl hover:scale-105 hover:bg-[#3be477]">{playing ? <Pause size={22} fill="black"/> : <Play size={22} fill="black" className="ml-1"/>}</button>
 }
 
 function MediaCard({ item, onOpen, onPlay, playing, round=false, eager=false }) {
   return (
-    <article onClick={onOpen} onKeyDown={e=>{if(e.key==='Enter')onOpen()}} tabIndex={0} role="button" className="media-card group min-w-[150px] cursor-pointer rounded-md p-2 transition hover:bg-[#1f1f1f] focus:bg-[#1f1f1f] md:min-w-0">
+    <article className="media-card relative min-w-0 rounded-md p-2 transition hover:bg-[#1f1f1f] focus-within:bg-[#1f1f1f] md:p-3">
+      <button onClick={onOpen} aria-label={`Open ${item.title || item.name}`} className="absolute inset-0 z-10 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2"/>
       <div className="relative"><Art item={item} round={round} eager={eager} className="aspect-square w-full"/><PlayDot playing={playing} onClick={onPlay} label={`${playing?'Pause':'Play'} ${item.title || item.name}`}/></div>
-      <div className="mt-2 truncate text-sm font-semibold">{item.title || item.name}</div>
-      <div className="mt-1 line-clamp-2 text-xs leading-5 text-[#b3b3b3]">{item.artist || 'Artist'}</div>
+      <div className="mt-2 line-clamp-2 text-sm leading-[22px] md:text-[15px]">{item.title || item.name}</div>
+      <div className="mt-1 line-clamp-2 text-xs leading-[22px] text-[#b3b3b3] md:text-sm">{item.artist || item.subtitle || 'Artist'}</div>
     </article>
   )
 }
 
 function Section({ title, children, onShowAll }) {
-  return <section className="mb-8"><div className="mb-2 flex items-end justify-between px-3 md:px-6"><h2 className="text-xl font-bold tracking-tight md:text-2xl">{title}</h2>{onShowAll && <button onClick={onShowAll} className="text-xs font-bold text-[#b3b3b3] hover:underline">Show all</button>}</div>{children}</section>
+  const rail=useRef(null)
+  const [edges,setEdges]=useState({left:false,right:false})
+  const update=useCallback(()=>{
+    const node=rail.current
+    if(!node)return
+    const left=node.scrollLeft>2
+    const right=node.scrollLeft+node.clientWidth<node.scrollWidth-2
+    setEdges(old=>old.left===left&&old.right===right?old:{left,right})
+  },[])
+  useEffect(()=>{
+    const observer=new ResizeObserver(update)
+    observer.observe(rail.current)
+    update()
+    return()=>observer.disconnect()
+  },[children.length,update])
+  const scroll=direction=>rail.current.scrollBy({left:direction*rail.current.clientWidth*.75,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})
+  return <section className="mb-8 md:mb-10">
+    <div className="flex items-end justify-between gap-3 px-4 md:px-10"><h2 className="text-xl font-bold tracking-tight md:text-2xl">{title}</h2>{onShowAll && <button onClick={onShowAll} className="shrink-0 text-xs font-bold text-[#b3b3b3] hover:underline md:text-sm">Show all</button>}</div>
+    <div className="group/rail relative md:mt-1">
+      <div className="home-rail" ref={rail} onScroll={update}>{children}</div>
+      {edges.left&&<button onClick={()=>scroll(-1)} aria-label={`Previous in ${title}`} className="rail-arrow left-2"><ChevronLeft size={20}/></button>}
+      {edges.right&&<button onClick={()=>scroll(1)} aria-label={`Next in ${title}`} className="rail-arrow right-2"><ChevronRight size={20}/></button>}
+    </div>
+  </section>
 }
 
 function HomePage({ tracks, current, isPlaying, playTrack, setPage }) {
-  return <div className="page-fade bg-gradient-to-b from-[#242424] via-[#121212] to-[#121212] pb-24 pt-6 md:pt-7">
+  const artists=[...new Map(tracks.map(t=>[t.artist,t])).values()].slice(0,6)
+  const releases=[...new Map(tracks.map(t=>[t.albumTitle?JSON.stringify([t.provider,t.artist,t.albumTitle]):t.id,t])).values()].slice(0,6)
+  return <div className="min-h-full bg-[linear-gradient(#222_0,#121212_290px)] pb-6 pt-6">
     <h1 className="sr-only">Home</h1>
     <Section title="Trending songs" onShowAll={() => setPage({ type:'playlist', id:'top-hits' })}>
-      <div className="spotify-scroll grid auto-cols-[170px] grid-flow-col overflow-x-auto px-2 pb-2 md:grid-flow-row md:grid-cols-[repeat(auto-fit,minmax(145px,1fr))] md:overflow-visible md:px-4">
-        {tracks.slice(0,6).map((t,i) => <MediaCard key={t.id} item={t} eager={i<3} onOpen={() => setPage({type:'search',query:t.title})} onPlay={() => playTrack(t)} playing={current?.id===t.id && isPlaying}/>) }
-      </div>
+      {tracks.slice(0,6).map(t => <MediaCard key={t.id} item={t} eager onOpen={() => setPage({type:'release',track:t})} onPlay={() => playTrack(t)} playing={current?.id===t.id && isPlaying}/>)}
     </Section>
     <Section title="Popular artists" onShowAll={() => setPage({ type:'search' })}>
-      <div className="spotify-scroll grid auto-cols-[170px] grid-flow-col overflow-x-auto px-2 pb-2 md:grid-flow-row md:grid-cols-[repeat(auto-fit,minmax(145px,1fr))] md:overflow-visible md:px-4">
-        {[...new Map(tracks.map(t=>[t.artist,{name:t.artist,artwork:t.artwork,color:t.color}])).values()].slice(0,6).map(a => <MediaCard key={a.name} item={a} round onOpen={() => setPage({type:'search',query:a.name})} onPlay={() => playTrack(tracks.find(t=>t.artist===a.name))} playing={current?.artist===a.name && isPlaying}/>) }
-      </div>
+      {artists.map(t => <MediaCard key={t.artist} item={{name:t.artist,artwork:t.artwork,thumbnail:t.thumbnail,color:t.color,subtitle:t.provider==='Invidious'?'Channel':'Artist'}} round onOpen={() => setPage({type:'artist',track:t})} onPlay={() => playTrack(t,tracks.filter(a=>a.artist===t.artist&&a.provider===t.provider))} playing={current?.id===t.id && isPlaying}/>)}
     </Section>
-    <Section title="Popular albums and singles">
-      <div className="spotify-scroll grid auto-cols-[170px] grid-flow-col overflow-x-auto px-2 pb-2 md:grid-flow-row md:grid-cols-[repeat(auto-fit,minmax(145px,1fr))] md:overflow-visible md:px-4">
-        {[...tracks].reverse().slice(0,6).map(t => <MediaCard key={t.id} item={t} onOpen={() => setPage({type:'search',query:t.title})} onPlay={() => playTrack(t)} playing={current?.id===t.id && isPlaying}/>) }
-      </div>
+    <Section title="Popular albums and recordings">
+      {releases.map(t => <MediaCard key={t.id} item={{...t,title:t.albumTitle||t.title}} onOpen={() => setPage({type:'release',track:t})} onPlay={() => playTrack(t)} playing={current?.id===t.id && isPlaying}/>)}
     </Section>
   </div>
 }
 
 function TrackRow({ track, index, playTrack, current, isPlaying, liked, toggleLike, compact=false, onAdd }) {
   const active = current?.id === track.id
-  return <div className={`track-row group grid h-14 items-center gap-3 rounded px-2 text-sm hover:bg-white/10 ${compact ? 'grid-cols-[24px_1fr_48px]' : 'grid-cols-[24px_minmax(160px,2fr)_minmax(100px,1fr)_44px_50px]'}`}>
+  return <div className={`track-row group grid h-14 items-center gap-3 rounded px-2 text-sm hover:bg-white/10 ${compact ? 'grid-cols-[24px_1fr_48px]' : 'grid-cols-[24px_minmax(0,2fr)_minmax(0,1fr)_36px_76px]'}`}>
     <button onClick={()=>playTrack(track)} aria-label={`${active&&isPlaying?'Pause':'Play'} ${track.title}`} className={`text-center ${active?'text-[#1ed760]':'text-[#b3b3b3]'}`}><span className="group-hover:hidden">{active&&isPlaying?<span className="inline-flex h-4 items-end gap-[2px]"><i className="eq-bar h-3 w-[2px] bg-[#1ed760]"/><i className="eq-bar h-4 w-[2px] bg-[#1ed760]"/><i className="eq-bar h-2 w-[2px] bg-[#1ed760]"/></span>:index+1}</span><span className="hidden group-hover:inline">{active&&isPlaying?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</span></button>
     <div className="flex min-w-0 items-center gap-3"><Art item={track} small className="h-10 w-10 shrink-0"/><div className="min-w-0"><div className={`truncate font-medium ${active?'text-[#1ed760]':''}`}>{track.title}</div><div className="truncate text-xs text-[#b3b3b3]">{track.artist}</div></div></div>
     {!compact && <div className="track-album truncate text-[#b3b3b3]">{track.album}</div>}
-    {!compact && <button onClick={()=>toggleLike?.(track.id)} className={`opacity-0 transition group-hover:opacity-100 ${liked?'!opacity-100 text-[#1ed760]':''}`} aria-label={liked?'Remove from Liked Songs':'Save to Liked Songs'}><Heart size={17} fill={liked?'currentColor':'none'}/></button>}
-    <div className="flex items-center justify-end gap-2 text-[#b3b3b3]"><span>{fmt(track.duration)}</span>{onAdd&&<button onClick={()=>onAdd(track)} className="opacity-0 group-hover:opacity-100" title="Add to playlist"><Plus size={16}/></button>}</div>
+    {!compact && <button onClick={()=>toggleLike?.(track.id)} className={`transition md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 ${liked?'!opacity-100 text-[#1ed760]':''}`} aria-label={liked?'Remove from Liked Songs':'Save to Liked Songs'}><Heart size={17} fill={liked?'currentColor':'none'}/></button>}
+    <div className="flex items-center justify-end gap-2 text-[#b3b3b3]"><span>{fmt(track.duration)}</span>{onAdd&&<button onClick={()=>onAdd(track)} className="md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100" aria-label={`Add ${track.title} to playlist`}><Plus size={16}/></button>}</div>
   </div>
 }
 
-function CollectionPage({ kind='playlist', title, description, tracks, playTrack, current, isPlaying, likedIds, toggleLike, setPage, shuffle, setShuffle }) {
-  const first = tracks[0] || EMPTY_TRACK
+function CollectionPage({ kind='playlist', title, description, tracks, artwork, playTrack, current, isPlaying, likedIds, toggleLike, setPage, shuffle, setShuffle, onAdd }) {
+  const first = artwork || tracks[0] || EMPTY_TRACK
   const isLiked = kind === 'liked'
-  const hero = isLiked ? ['#450af5','#8c8ce5'] : first.color
-  return <div className="page-fade min-h-full bg-[#121212] pb-28">
+  const isArtist = kind === 'artist' || kind === 'channel'
+  const isPlaylist = isLiked || kind === 'playlist'
+  const isActive = current && tracks.some(t=>t.id===current.id)
+  const hero = isLiked ? ['#450af5','#8c8ce5'] : first.color || EMPTY_TRACK.color
+  const label = isPlaylist ? 'Playlist' : kind[0].toUpperCase()+kind.slice(1)
+  return <div className="page-fade min-h-full bg-[#121212] pb-6">
     <section className="flex min-h-[276px] flex-col justify-end gap-5 p-6 md:flex-row md:items-end md:justify-start" style={{background:`linear-gradient(180deg, ${hero[1]}, ${hero[0]})`}}>
-      {isLiked ? <div className="grid h-40 w-40 shrink-0 place-items-center bg-gradient-to-br from-[#450af5] to-[#c4efd9] shadow-2xl md:h-56 md:w-56"><Heart size={70} fill="white"/></div> : <Art item={{...first,title,glyph:title[0],color:hero}} large className="h-40 w-40 shrink-0 md:h-56 md:w-56"/>}
-      <div className="min-w-0"><div className="mb-2 text-xs font-semibold">{isLiked?'Playlist':'Playlist'}</div><h1 className="truncate text-4xl font-black tracking-[-.05em] sm:text-6xl xl:text-8xl">{title}</h1><p className="mt-4 text-sm text-white/80">{description}</p><div className="mt-2 text-sm"><b>OpenPlayer</b> · {tracks.length} {tracks.length===1?'song':'songs'}, about {tracks.length?Math.max(1,Math.round(tracks.reduce((a,t)=>a+t.duration,0)/60)):0} min</div></div>
+      {isLiked ? <div className="grid h-40 w-40 shrink-0 place-items-center bg-gradient-to-br from-[#450af5] to-[#c4efd9] shadow-2xl md:h-56 md:w-56"><Heart size={70} fill="white"/></div> : <Art item={{...first,title,glyph:title[0],color:hero}} round={isArtist} eager large className="h-40 w-40 shrink-0 md:h-56 md:w-56"/>}
+      <div className="min-w-0"><div className="mb-2 text-xs font-semibold">{label}</div><h1 className={`line-clamp-3 break-words text-3xl font-black tracking-[-.045em] sm:text-5xl ${isPlaylist||isArtist?'xl:text-7xl':'xl:text-5xl'}`}>{title}</h1>{description&&<p className="mt-4 text-sm text-white/80">{description}</p>}<div className="mt-2 text-sm">{isPlaylist&&<><b>OpenPlayer</b> · </>}{tracks.length} {tracks.length===1?'track':'tracks'}</div></div>
     </section>
-    <div className="bg-gradient-to-b from-black/50 to-transparent p-4 md:p-6"><div className="mb-5 flex items-center gap-5"><button aria-label="Play playlist" disabled={!tracks.length} onClick={()=>tracks[0]&&playTrack(current&&tracks.some(t=>t.id===current.id)?current:tracks[0])} className="grid h-14 w-14 place-items-center rounded-full bg-[#1ed760] text-black hover:scale-105">{current&&tracks.some(t=>t.id===current.id)&&isPlaying?<Pause size={27} fill="black"/>:<Play size={27} fill="black" className="ml-1"/>}</button><IconButton label="Shuffle playlist" active={shuffle} onClick={()=>setShuffle(v=>!v)}><Shuffle size={30}/></IconButton></div>
-      <div className="mb-2 hidden grid-cols-[24px_minmax(160px,2fr)_minmax(100px,1fr)_44px_50px] gap-3 border-b border-white/10 px-2 pb-2 text-sm text-[#b3b3b3] md:grid"><span>#</span><span>Title</span><span>Album</span><span/><Clock3 size={16}/></div>
-      {tracks.length ? tracks.map((t,i)=><TrackRow key={t.id} track={t} index={i} playTrack={playTrack} current={current} isPlaying={isPlaying} liked={likedIds.includes(t.id)} toggleLike={toggleLike} compact={false}/>) : <div className="py-20 text-center"><Music2 className="mx-auto mb-4" size={48}/><h2 className="text-2xl font-bold">This playlist is empty</h2><button onClick={()=>setPage({type:'search'})} className="mt-5 rounded-full bg-white px-5 py-3 font-bold text-black">Find something to add</button></div>}
+    <div className="bg-gradient-to-b from-black/50 to-transparent p-4 md:p-6"><div className="mb-5 flex flex-wrap items-center gap-5"><button aria-label={`${isActive&&isPlaying?'Pause':'Play'} ${label.toLowerCase()}`} disabled={!tracks.length} onClick={()=>playTrack(isActive?current:tracks[0])} className="grid h-14 w-14 place-items-center rounded-full bg-[#1ed760] text-black hover:scale-105 disabled:opacity-50">{isActive&&isPlaying?<Pause size={27} fill="black"/>:<Play size={27} fill="black" className="ml-1"/>}</button><IconButton label="Shuffle" active={shuffle} onClick={setShuffle}><Shuffle size={30}/></IconButton>{isArtist&&<button onClick={()=>setPage({type:'search',query:title})} className="rounded-full border border-white/30 px-4 py-2 text-sm font-bold hover:border-white">Find more</button>}</div>
+      <div className="mb-2 hidden grid-cols-[24px_minmax(0,2fr)_minmax(0,1fr)_36px_76px] gap-3 border-b border-white/10 px-2 pb-2 text-sm text-[#b3b3b3] md:grid"><span>#</span><span>Title</span><span>Album</span><span/><Clock3 size={16}/></div>
+      {tracks.length ? tracks.map((t,i)=><TrackRow key={t.id} track={t} index={i} playTrack={playTrack} current={current} isPlaying={isPlaying} liked={likedIds.includes(t.id)} toggleLike={toggleLike} onAdd={onAdd}/>) : <div className="py-20 text-center"><Music2 className="mx-auto mb-4" size={48}/><h2 className="text-2xl font-bold">This playlist is empty</h2><button onClick={()=>setPage({type:'search'})} className="mt-5 rounded-full bg-white px-5 py-3 font-bold text-black">Find something to add</button></div>}
     </div>
   </div>
 }
@@ -185,9 +206,9 @@ function Player({ audioRef, loading, current, isPlaying, toggle, next, canAdvanc
   const mute=()=>{if(muted){setVolume(volumeBeforeMute.current||.72);setMuted(false)}else{volumeBeforeMute.current=volume;setVolume(0);setMuted(true)}}
   if (!current) return null
   return <>
-    <div className="fixed bottom-[64px] left-2 right-2 z-50 flex h-14 items-center rounded-md bg-[#3b3b3b] px-2 shadow-xl md:hidden">
+    {!expanded&&<div className="fixed bottom-[64px] left-2 right-2 z-50 flex h-14 items-center rounded-md bg-[#3b3b3b] px-2 shadow-xl md:hidden">
       <Art item={current} className="h-11 w-11 shrink-0"/><button onClick={()=>setExpanded(true)} aria-label="Open player" className="min-w-0 flex-1 px-2 text-left"><div className="truncate text-sm font-semibold">{current.title}</div><div className="truncate text-xs text-[#ddd]">{current.artist}</div></button><button aria-label={liked?'Remove from Liked Songs':'Save to Liked Songs'} onClick={()=>toggleLike(current.id)} className={liked?'text-[#1ed760]':''}><Heart size={21} fill={liked?'currentColor':'none'}/></button><button aria-label={loading?'Cancel loading':isPlaying?'Pause':'Play'} onClick={toggle} className="ml-4">{loading?<X size={25}/>:isPlaying?<Pause size={25} fill="white"/>:<Play size={25} fill="white"/>}</button><div className="absolute bottom-0 left-0 h-[2px] rounded bg-white" style={{width:`${duration?progress/duration*100:0}%`}}/>
-    </div>
+    </div>}
     <footer className={`fixed bottom-0 left-0 right-0 z-[60] grid-cols-[minmax(180px,1fr)_minmax(300px,2fr)_minmax(180px,1fr)] items-center bg-black px-4 md:grid md:h-[92px] ${expanded?'flex h-full flex-col justify-center gap-12':'hidden h-[92px]'}`}>
       {expanded&&<button onClick={()=>setExpanded(false)} aria-label="Close player" className="absolute top-6 right-6 md:hidden"><ChevronDown size={30}/></button>}
       <div className="flex w-full min-w-0 items-center gap-3 md:w-auto"><Art item={current} className="h-14 w-14 shrink-0"/><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium hover:underline">{current.title}</div><div className="truncate text-xs text-[#b3b3b3] hover:underline">{current.artist}</div></div><IconButton label={liked?'Remove from Liked Songs':'Save to Liked Songs'} active={liked} onClick={()=>toggleLike(current.id)} className="ml-2 h-8 w-8"><Heart size={17} fill={liked?'currentColor':'none'}/></IconButton></div>
@@ -258,6 +279,7 @@ export default function App() {
   const [repeat,setRepeat]=useState(0)
   const [volume,setVolume]=useState(()=>Math.max(0,Math.min(1,Number(localStorage.getItem('spotify-clone-volume')??.72)||0)))
   const audioRef=useRef(null),playbackRequest=useRef(null),startingPlayback=useRef(null),fileRef=useRef(null)
+  const mainRef=useRef(null)
   const recoveryUsed=useRef(false)
   const onPlaybackFault=useRef(null)
   const originalQueue=useRef([])
@@ -311,6 +333,7 @@ export default function App() {
     if(p.query!==undefined)setQuery(p.query)
     setPageState(p);setQueueOpen(false)
   },[])
+  useEffect(()=>{mainRef.current.scrollTop=0},[page.type,page.id,page.track?.id])
   const retry=()=>{musicService.clearCache();setRetryCount(v=>v+1)}
   useEffect(()=>localStorage.setItem('spotify-clone-liked',JSON.stringify(likedIds)),[likedIds])
   useEffect(()=>localStorage.setItem('spotify-clone-playlists',JSON.stringify(playlists)),[playlists])
@@ -477,15 +500,33 @@ export default function App() {
   let content
   if(page.type==='search')content=<UnifiedSearch query={query} setQuery={q=>{setQuery(q);setAudiusOnly(false)}} results={results} busy={busy} error={musicError} status={status} latest={latest} setLatest={setLatest} retry={retry} playTrack={playTrack} current={current} isPlaying={isPlaying} toggleLike={toggleLike} likedIds={likedIds} setPage={setPage} onAdd={setAddTarget}/>
   else if(page.type==='library')content=<LibraryPage playlists={playlists} setPage={setPage} setCreateOpen={setCreateOpen} likedCount={likedIds.length} onUpload={()=>fileRef.current?.click()}/>
-  else if(page.type==='liked'||page.type==='playlist'){
+  else if(['liked','playlist','artist','release'].includes(page.type)){
     const p=playlists.find(x=>x.id===page.id)
-    const list=page.type==='liked'?tracks.filter(t=>likedIds.includes(t.id)):p?tracks.filter(t=>p.trackIds.includes(t.id)):homeTracks
-    content=<CollectionPage kind={page.type} title={page.type==='liked'?'Liked Songs':p?.name||'Discover music'} description="Your music, your library." tracks={list} playTrack={(t)=>playTrack(t,false,list)} current={current} isPlaying={isPlaying} likedIds={likedIds} toggleLike={toggleLike} setPage={setPage} shuffle={shuffle} setShuffle={toggleShuffle}/>
-  }else content=<><div className="px-6 pt-4 text-sm text-[#b3b3b3]">Discover music{busy?' · Loading…':''}{status&&<p role="status" className="mt-2">{status}</p>}{musicError&&<p role="alert">{musicError}</p>}{musicError&&<button onClick={retry} className="underline mt-2">Retry search</button>}</div><HomePage tracks={homeTracks} current={current} isPlaying={isPlaying} playTrack={(t)=>playTrack(t,false,homeTracks)} setPage={setPage}/></>
-  return <div className="h-full bg-black text-white">
+    const seed=page.track
+    let kind=page.type,title,description,list
+    if(kind==='artist'||kind==='release'){
+      const known=[seed,...tracks.filter(t=>t.id!==seed.id&&t.provider===seed.provider&&t.artist===seed.artist)]
+      if(kind==='artist'){
+        kind=seed.provider==='Invidious'?'channel':'artist'
+        title=seed.artist
+        list=known
+      }else{
+        kind=seed.albumTitle?'album':'recording'
+        title=seed.albumTitle||seed.title
+        description=seed.artist
+        list=seed.albumTitle?known.filter(t=>t.albumTitle===seed.albumTitle):[seed]
+      }
+    }else{
+      title=kind==='liked'?'Liked Songs':p?.name||'Discover music'
+      description=kind==='liked'||p?'Your music, your library.':null
+      list=kind==='liked'?tracks.filter(t=>likedIds.includes(t.id)):p?tracks.filter(t=>p.trackIds.includes(t.id)):homeTracks
+    }
+    content=<CollectionPage kind={kind} title={title} description={description} tracks={list} artwork={seed} playTrack={(t)=>playTrack(t,false,list)} current={current} isPlaying={isPlaying} likedIds={likedIds} toggleLike={toggleLike} setPage={setPage} shuffle={shuffle} setShuffle={toggleShuffle} onAdd={setAddTarget}/>
+  }else content=<>{(busy||status||musicError)&&<div className="px-4 pt-4 text-sm text-[#b3b3b3] md:px-10">{busy&&!homeTracks.length&&<p role="status">Loading music…</p>}{status&&<p role="status">{status}</p>}{musicError&&<p role="alert">{musicError}</p>}{musicError&&<button onClick={retry} className="mt-2 underline">Retry search</button>}</div>}<HomePage tracks={homeTracks} current={current} isPlaying={isPlaying} playTrack={(t,list=homeTracks)=>playTrack(t,false,list)} setPage={setPage}/></>
+  return <div className="flex h-full flex-col bg-black text-white">
     <audio ref={audioRef} preload="metadata" data-testid="audio-engine"/>
     <TopBar page={page} setPage={setPage} query={query} setQuery={q=>{setQuery(q);setAudiusOnly(false)}}/>
-    <div className="flex h-[calc(100%-64px)] gap-2 px-0 pb-0 md:px-2 md:pb-[100px]"><Sidebar page={page} setPage={setPage} playlists={playlists} setCreateOpen={setCreateOpen} onUpload={()=>fileRef.current?.click()}/><main className="spotify-scroll min-w-0 flex-1 overflow-y-auto rounded-none bg-[#121212] md:rounded-lg">{content}</main></div>
+    <div className={`flex min-h-0 flex-1 gap-2 px-0 md:px-2 md:pb-[100px] ${current?'pb-[120px]':'pb-16'}`}><Sidebar page={page} setPage={setPage} playlists={playlists} setCreateOpen={setCreateOpen} onUpload={()=>fileRef.current?.click()}/><main ref={mainRef} className="spotify-scroll min-w-0 flex-1 overflow-y-auto rounded-none bg-[#121212] md:rounded-lg">{content}</main></div>
     <Player audioRef={audioRef} loading={playLoading} current={current} isPlaying={isPlaying} toggle={toggle} next={next} canAdvance={upcoming.length>0} previous={previous} shuffle={shuffle} setShuffle={toggleShuffle} repeat={repeat} setRepeat={setRepeat} volume={volume} setVolume={setVolume} seek={seek} liked={current&&likedIds.includes(current.id)} toggleLike={toggleLike} setQueueOpen={setQueueOpen}/>
     <MobileNav page={page} setPage={setPage}/>
     {playLoading&&<div role="status" className="fixed bottom-32 left-4 z-[65] rounded bg-[#282828] p-3 text-sm">{reconnecting?'Reconnecting audio…':'Loading audio…'}</div>}

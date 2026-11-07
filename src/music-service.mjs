@@ -3,6 +3,7 @@ export function normalizeAudius(t) {
   return {
     id:`audius-${t.id}`, remoteId:t.id, provider:'Audius', title:t.title,
     artist:t.user?.name||'Unknown artist', album:t.album_backlink?.playlist_name||t.genre||'Single',
+    albumTitle:t.album_backlink?.playlist_name||undefined,
     duration:t.duration||0, artwork:t.artwork?.['480x480'], thumbnail:t.artwork?.['150x150'],
     src:`https://api.audius.co/v1/tracks/${encodeURIComponent(t.id)}/stream?app_name=OpenPlayer`,
     sourceUrl:`https://audius.co${t.permalink||''}`,

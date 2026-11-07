@@ -39,3 +39,13 @@ Target content was treated as untrusted data. No instructions from page content 
 - Authenticated-only library behavior and Spotify Connect internals were outside the permitted public-page scope.
 - Exact server-fed recommendation ranking and licensed metadata are not reconstructed.
 - Pixel equality is neither claimed nor possible with intentionally different artwork, text content, and omitted commercial surfaces; structural and interaction equivalence were the verification boundary.
+
+## November 7 follow-up
+
+Fresh public captures: Spotify at 1440×900 (`ev_eed8a9bf089682a1e3ba31bfba63da95c1ee9c6ffd3b67b15f89a4132f6c19a1`) and 390×844 (`ev_cf6a6cb96737987b8d0a31fe893549a15123c8a46fdd02274ed016eb71810c04`). The desktop Home and search controls sit at the left of the header, and Home uses horizontal rails with about 172 px of artwork per card. The narrow Spotify web viewport clips the main area beside its library rail. OpenPlayer keeps the main content at full width on phones and uses bottom navigation.
+
+The update aligns the desktop header and media rails, adds artwork fallbacks, and separates playback from opening a card. Artist and channel pages show known tracks from the same source. A release page is labeled Album only when the provider supplies album metadata; otherwise it shows the individual recording.
+
+- Desktop rail controls scrolled forward and back (`ev_d9721039748293de06805526066718210511555c06a7b3befe88939a00c729da`).
+- Desktop channel page played real audio, opened the queue, and searched for more tracks (`ev_d27a2c331fc694e223d45ab9180dc224fadc388e8c008f5b8d19b33b4f28e433`).
+- Mobile recording page played real audio. The expanded player progressed to 3.9 seconds, closed back to the mini-player, and reported no page errors (`ev_2919707693ff0eb52276a1de0d13ff59d98fda0b5541ee1ab285cc31c045be0b`).

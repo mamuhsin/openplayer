@@ -19,6 +19,21 @@ button { color: inherit; }
 .range:hover::-webkit-slider-thumb { opacity: 1; }
 .card-play { opacity: 0; transform: translateY(8px); transition: .2s ease; }
 .media-card:hover .card-play, .media-card:focus-within .card-play { opacity: 1; transform: translateY(0); }
+.home-rail { display: grid; grid-auto-flow: column; grid-auto-columns: 170px; overflow-x: auto; padding-inline: 8px; scrollbar-width: none; scroll-padding-inline: 8px; scroll-snap-type: x proximity; }
+.home-rail .media-card { scroll-snap-align: start; }
+.rail-arrow { display: none; }
+@media (min-width: 768px) {
+  .home-rail { grid-auto-columns: clamp(160px, 19%, 220px); padding-inline: 28px; scroll-padding-inline: 28px; }
+  .rail-arrow { position: absolute; z-index: 30; top: 40%; display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: #1f1f1f; color: #fff; box-shadow: 0 3px 8px #0009; opacity: 0; transition: opacity .15s; }
+  .group\/rail:hover .rail-arrow, .group\/rail:focus-within .rail-arrow { opacity: 1; }
+}
+@media (hover: none) {
+  .card-play { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-play, .rail-arrow { transition: none; }
+  .page-fade, .eq-bar { animation: none !important; }
+}
 .page-fade { animation: fade .22s ease; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes pulsebar { 0%,100% { transform: scaleY(.35) } 50% { transform: scaleY(1) } }
@@ -28,7 +43,7 @@ button { color: inherit; }
 .tooltip { position: relative; }
 .tooltip:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #282828; color: #fff; padding: 6px 8px; border-radius: 4px; white-space: nowrap; font-size: 12px; font-weight: 700; box-shadow: 0 3px 12px #0009; z-index: 100; }
 @media (max-width: 767px) {
-  .track-row { grid-template-columns: 20px minmax(0,1fr) 24px 42px; gap: 8px; }
+  .track-row { grid-template-columns: 20px minmax(0,1fr) 24px 70px; gap: 8px; }
   .track-row .track-album { display: none; }
   html, body, #root { overflow: hidden; }
   ::-webkit-scrollbar { width: 0; height: 0; }
