@@ -25,7 +25,7 @@ Public instances, geography, CORS and source restrictions affect availability. T
 - Desktop sidebar, mobile navigation and expanded mobile player
 - Play/pause, previous/next, shuffle, repeat/repeat-one, seek, volume/mute and queue
 - Likes, custom playlists and metadata persist in localStorage on the current browser/origin
-- Local audio upload is session-only; select files again after reload
+- Your Library → Recent keeps the last 50 distinct tracks that played in this browser
 - Remote artwork and source links
 
 See ANDROID.md for debug APK builds, INVIDIOUS.md for API details and VERIFICATION.md for checks. Source is MIT-licensed; that does not grant rights to third-party music or artwork. This independent project is not affiliated with Spotify.

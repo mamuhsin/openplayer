@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 
 const EMPTY_TRACK = {title:'',album:'',color:['#282828','#111827']}
+const RECENT_KEY = 'openplayer-recent'
+const RECENT_LIMIT = 50
 
 const fmt = (seconds = 0) => {
   if (!Number.isFinite(seconds)) return '0:00'
@@ -68,7 +70,7 @@ function TopBar({ page, setPage, query, setQuery }) {
   )
 }
 
-function Sidebar({ page, setPage, playlists, setCreateOpen, onUpload }) {
+function Sidebar({ page, setPage, playlists, setCreateOpen }) {
   const [filter, setFilter] = useState('')
   const items = [{ id:'liked', name:'Liked Songs', meta:'Playlist', special:true }, ...playlists]
   return (
@@ -76,7 +78,7 @@ function Sidebar({ page, setPage, playlists, setCreateOpen, onUpload }) {
       <div className="flex h-16 items-center gap-3 px-5 font-bold text-[#b3b3b3]"><Library size={24}/><span>Your Library</span>
         <IconButton label="Create playlist" onClick={() => setCreateOpen(true)} className="ml-auto h-9 w-9 hover:bg-[#2a2a2a]"><Plus size={22}/></IconButton>
       </div>
-      <div className="flex gap-2 px-4 pb-3"><button onClick={()=>setPage({type:'library'})} className="rounded-full bg-[#2a2a2a] px-3 py-1.5 text-sm font-semibold hover:bg-[#333]">Playlists</button><button onClick={onUpload} className="rounded-full bg-[#2a2a2a] px-3 py-1.5 text-sm font-semibold hover:bg-[#333]">Local audio</button></div>
+      <div className="flex gap-2 px-4 pb-3"><button onClick={()=>setPage({type:'library'})} className="rounded-full bg-[#2a2a2a] px-3 py-1.5 text-sm font-semibold hover:bg-[#333]">Playlists</button><RecentButton active={page.type==='recent'} setPage={setPage}/></div>
       <div className="flex items-center gap-2 px-4 pb-2"><Search size={19} className="text-[#b3b3b3]"/><input value={filter} onChange={e=>setFilter(e.target.value)} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#777]" placeholder="Search your library"/></div>
       <div className="spotify-scroll min-h-0 flex-1 overflow-y-auto px-2">
         {items.filter(x => x.name.toLowerCase().includes(filter.toLowerCase())).map(item => (
@@ -152,10 +154,10 @@ function HomePage({ tracks, current, isPlaying, playTrack, setPage }) {
   </div>
 }
 
-function TrackRow({ track, index, playTrack, current, isPlaying, liked, toggleLike, compact=false, onAdd }) {
+function TrackRow({ track, index, playTrack, current, isPlaying, liked, toggleLike, compact=false, onAdd, showPlay=false }) {
   const active = current?.id === track.id
   return <div className={`track-row group grid h-14 items-center gap-3 rounded px-2 text-sm hover:bg-white/10 ${compact ? 'grid-cols-[24px_1fr_48px]' : 'grid-cols-[24px_minmax(0,2fr)_minmax(0,1fr)_36px_76px]'}`}>
-    <button onClick={()=>playTrack(track)} aria-label={`${active&&isPlaying?'Pause':'Play'} ${track.title}`} className={`text-center ${active?'text-[#1ed760]':'text-[#b3b3b3]'}`}><span className="group-hover:hidden">{active&&isPlaying?<span className="inline-flex h-4 items-end gap-[2px]"><i className="eq-bar h-3 w-[2px] bg-[#1ed760]"/><i className="eq-bar h-4 w-[2px] bg-[#1ed760]"/><i className="eq-bar h-2 w-[2px] bg-[#1ed760]"/></span>:index+1}</span><span className="hidden group-hover:inline">{active&&isPlaying?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</span></button>
+    <button onClick={()=>playTrack(track)} aria-label={`${active&&isPlaying?'Pause':'Play'} ${track.title}`} className={`text-center ${active?'text-[#1ed760]':'text-[#b3b3b3]'}`}>{!showPlay&&<span className="group-hover:hidden">{active&&isPlaying?<span className="inline-flex h-4 items-end gap-[2px]"><i className="eq-bar h-3 w-[2px] bg-[#1ed760]"/><i className="eq-bar h-4 w-[2px] bg-[#1ed760]"/><i className="eq-bar h-2 w-[2px] bg-[#1ed760]"/></span>:index+1}</span>}<span className={showPlay?'inline':'hidden group-hover:inline'}>{active&&isPlaying?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</span></button>
     <div className="flex min-w-0 items-center gap-3"><Art item={track} small className="h-10 w-10 shrink-0"/><div className="min-w-0"><div className={`truncate font-medium ${active?'text-[#1ed760]':''}`}>{track.title}</div><div className="truncate text-xs text-[#b3b3b3]">{track.artist}</div></div></div>
     {!compact && <div className="track-album truncate text-[#b3b3b3]">{track.album}</div>}
     {!compact && <button onClick={()=>toggleLike?.(track.id)} className={`transition md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 ${liked?'!opacity-100 text-[#1ed760]':''}`} aria-label={liked?'Remove from Liked Songs':'Save to Liked Songs'}><Heart size={17} fill={liked?'currentColor':'none'}/></button>}
@@ -226,8 +228,35 @@ function MobileNav({ page, setPage }) {
   </nav>
 }
 
-function LibraryPage({ playlists, setPage, setCreateOpen, likedCount, onUpload }) {
-  return <div className="min-h-full bg-[#121212] p-4 pb-32"><div className="mb-5 flex items-center"><div className="grid h-9 w-9 place-items-center rounded-full bg-[#a855f7] font-bold">Y</div><h1 className="ml-3 text-2xl font-bold">Your Library</h1><button onClick={()=>setCreateOpen(true)} className="ml-auto"><Plus size={28}/></button></div><div className="mb-5 flex gap-2"><button onClick={()=>setCreateOpen(true)} className="rounded-full bg-[#2a2a2a] px-3 py-1.5 text-sm">Create playlist</button><button onClick={onUpload} className="rounded-full bg-[#2a2a2a] px-3 py-1.5 text-sm">Local audio</button></div><button onClick={()=>setPage({type:'liked'})} className="mb-3 flex w-full items-center gap-3"><div className="grid h-16 w-16 place-items-center rounded bg-gradient-to-br from-[#450af5] to-[#c4efd9]"><Heart fill="white"/></div><div className="text-left"><div className="font-semibold">Liked Songs</div><div className="text-sm text-[#b3b3b3]">Playlist · {likedCount} songs</div></div></button>{playlists.map(p=><button key={p.id} onClick={()=>setPage({type:'playlist',id:p.id})} className="mb-3 flex w-full items-center gap-3"><Art item={{title:p.name,glyph:p.name[0],color:p.color||['#334155','#111827']}} className="h-16 w-16"/><div className="text-left"><div className="font-semibold">{p.name}</div><div className="text-sm text-[#b3b3b3]">Playlist · You</div></div></button>)}</div>
+function RecentButton({ active=false, setPage }) {
+  return <button
+    aria-pressed={active}
+    onClick={()=>setPage({type:'recent'})}
+    className={`rounded-full px-3 py-1.5 text-sm font-semibold ${active?'bg-white text-black':'bg-[#2a2a2a] hover:bg-[#333]'}`}>
+    Recent
+  </button>
+}
+
+function LibraryPage({ playlists, setPage, setCreateOpen, likedCount }) {
+  return <div className="min-h-full bg-[#121212] p-4 pb-32"><div className="mb-5 flex items-center"><div className="grid h-9 w-9 place-items-center rounded-full bg-[#a855f7] font-bold">Y</div><h1 className="ml-3 text-2xl font-bold">Your Library</h1><button onClick={()=>setCreateOpen(true)} className="ml-auto"><Plus size={28}/></button></div>
+    <div className="mb-5 flex gap-2"><button onClick={()=>setCreateOpen(true)} className="rounded-full bg-[#2a2a2a] px-3 py-1.5 text-sm">Create playlist</button><RecentButton setPage={setPage}/></div>
+    <button onClick={()=>setPage({type:'liked'})} className="mb-3 flex w-full items-center gap-3"><div className="grid h-16 w-16 place-items-center rounded bg-gradient-to-br from-[#450af5] to-[#c4efd9]"><Heart fill="white"/></div><div className="text-left"><div className="font-semibold">Liked Songs</div><div className="text-sm text-[#b3b3b3]">Playlist · {likedCount} songs</div></div></button>{playlists.map(p=><button key={p.id} onClick={()=>setPage({type:'playlist',id:p.id})} className="mb-3 flex w-full items-center gap-3"><Art item={{title:p.name,glyph:p.name[0],color:p.color||['#334155','#111827']}} className="h-16 w-16"/><div className="text-left"><div className="font-semibold">{p.name}</div><div className="text-sm text-[#b3b3b3]">Playlist · You</div></div></button>)}</div>
+}
+
+function RecentPage({ tracks, setPage, playTrack, current, isPlaying, likedIds, toggleLike, onAdd }) {
+  return <div className="page-fade min-h-full p-4 md:p-6">
+    <h1 className="mb-5 text-2xl font-bold">Recently played</h1>
+    {tracks.length ? tracks.map((track,index)=>
+      <TrackRow key={track.id} track={track} index={index} playTrack={playTrack}
+        current={current} isPlaying={isPlaying} liked={likedIds.includes(track.id)}
+        toggleLike={toggleLike} onAdd={onAdd} showPlay/>
+    ) : <div className="py-16 text-center">
+      <Clock3 className="mx-auto mb-4 text-[#b3b3b3]" size={40}/>
+      <h2 className="text-xl font-bold">No recently played tracks</h2>
+      <p className="mt-2 text-sm text-[#b3b3b3]">Tracks appear here after you play them.</p>
+      <button onClick={()=>setPage({type:'search',query:''})} className="mt-5 rounded-full bg-white px-5 py-3 text-sm font-bold text-black">Search music</button>
+    </div>}
+  </div>
 }
 
 function QueuePanel({ tracks, current, playTrack, onClose }) {
@@ -266,7 +295,12 @@ export default function App() {
   const [audiusOnly,setAudiusOnly]=useState(false)
   const [likedIds,setLikedIds]=useState(()=>readStored('spotify-clone-liked',[]))
   const [playlists,setPlaylists]=useState(()=>readStored('spotify-clone-playlists',[]))
-  const [uploaded,setUploaded]=useState([])
+  const [recentIds,setRecentIds]=useState(()=>{
+    const stored=readStored(RECENT_KEY,[])
+    return Array.isArray(stored)
+      ? [...new Set(stored.filter(id=>typeof id==='string'))].slice(0,RECENT_LIMIT)
+      : []
+  })
   const [createOpen,setCreateOpen]=useState(false)
   const [addTarget,setAddTarget]=useState(null)
   const [queueOpen,setQueueOpen]=useState(false)
@@ -278,12 +312,12 @@ export default function App() {
   const [shuffle,setShuffle]=useState(false)
   const [repeat,setRepeat]=useState(0)
   const [volume,setVolume]=useState(()=>Math.max(0,Math.min(1,Number(localStorage.getItem('spotify-clone-volume')??.72)||0)))
-  const audioRef=useRef(null),playbackRequest=useRef(null),startingPlayback=useRef(null),fileRef=useRef(null)
+  const audioRef=useRef(null),playbackRequest=useRef(null),startingPlayback=useRef(null)
   const mainRef=useRef(null)
   const recoveryUsed=useRef(false)
   const onPlaybackFault=useRef(null)
   const originalQueue=useRef([])
-  const [catalog,setCatalog]=useState(()=>readStored('openplayer-catalog',[]).filter(t=>t.provider==='Invidious'||t.provider==='Audius'))
+  const [tracks,setCatalog]=useState(()=>readStored('openplayer-catalog',[]).filter(t=>t.provider==='Invidious'||t.provider==='Audius'))
   const [results,setResults]=useState([])
   const [homeTracks,setHomeTracks]=useState([])
   const [busy,setBusy]=useState(true)
@@ -291,11 +325,10 @@ export default function App() {
   const [musicError,setMusicError]=useState('')
   const [playError,setPlayError]=useState('')
   const [playRetryAt,setPlayRetryAt]=useState(0)
-  const tracks=useMemo(()=>[...catalog,...uploaded],[catalog,uploaded])
-  const savedIds=useMemo(()=>new Set([...likedIds,...playlists.flatMap(p=>p.trackIds||[])]),[likedIds,playlists])
+  const savedIds=useMemo(()=>new Set([...likedIds,...playlists.flatMap(p=>p.trackIds||[]),...recentIds]),[likedIds,playlists,recentIds])
   const savedIdsRef=useRef(savedIds)
   useEffect(()=>{savedIdsRef.current=savedIds},[savedIds])
-  const storedCatalog=useMemo(()=>JSON.stringify(catalog.filter(t=>savedIds.has(t.id))),[catalog,savedIds])
+  const storedCatalog=useMemo(()=>JSON.stringify(tracks.filter(t=>savedIds.has(t.id))),[tracks,savedIds])
   const searchQuery=page.type==='search'?query.trim():''
   useEffect(()=>{
     const controller=new AbortController()
@@ -338,6 +371,7 @@ export default function App() {
   useEffect(()=>localStorage.setItem('spotify-clone-liked',JSON.stringify(likedIds)),[likedIds])
   useEffect(()=>localStorage.setItem('spotify-clone-playlists',JSON.stringify(playlists)),[playlists])
   useEffect(()=>{try{localStorage.setItem('openplayer-catalog',storedCatalog)}catch{}},[storedCatalog])
+  useEffect(()=>{try{localStorage.setItem(RECENT_KEY,JSON.stringify(recentIds))}catch{}},[recentIds])
   useEffect(()=>{localStorage.setItem('spotify-clone-volume',String(volume));audioRef.current.volume=volume},[volume])
   useEffect(()=>()=>{playbackRequest.current?.abort();audioRef.current?.pause()},[])
   useEffect(()=>{
@@ -429,6 +463,12 @@ export default function App() {
             await startAudio(a,attempt)
             restorePosition(a,position)
           }
+          if(!recovering&&playbackRequest.current===request){
+            setCatalog(old=>old.some(item=>item.id===candidate.id)?old:[...old,candidate])
+            setRecentIds(old=>old[0]===candidate.id
+              ? old
+              : [candidate.id,...old.filter(id=>id!==candidate.id)].slice(0,RECENT_LIMIT))
+          }
           return
         }catch(error){
           signal.throwIfAborted()
@@ -464,7 +504,7 @@ export default function App() {
   onPlaybackFault.current=(position,mediaError=false)=>{
     const a=audioRef.current
     if(!current||startingPlayback.current||a.ended||(!mediaError&&a.paused))return
-    if(!current.uploaded&&!recoveryUsed.current&&(isPlaying||!a.paused)){
+    if(!recoveryUsed.current&&(isPlaying||!a.paused)){
       recoveryUsed.current=true
       playTrack(current,true,undefined,{startTime:position,recovering:true})
       return
@@ -495,11 +535,16 @@ export default function App() {
     const p={id:'playlist-'+Date.now(),name:name.trim(),trackIds:addTarget?[addTarget.id]:[],color:['#5b21b6','#0f172a']}
     setPlaylists(v=>[...v,p]);setCreateOpen(false);setAddTarget(null);setPage({type:'playlist',id:p.id})
   }
-  const handleUpload=e=>{const file=e.target.files?.[0];if(!file)return;const t={id:'upload-'+Date.now(),title:file.name.replace(/\.[^.]+$/,''),artist:'Local file',album:'Uploads (this session)',duration:0,color:['#0f766e','#22c55e'],glyph:'♪',src:URL.createObjectURL(file),uploaded:true};setUploaded(v=>[...v,t]);playTrack(t,false,[t]);e.target.value=''}
   const alternatives=()=>{setQuery(query.trim()||current?.title?.split('|')[0].trim()||'');setAudiusOnly(true);setPlayError('');setPage({type:'search'});retry()}
   let content
   if(page.type==='search')content=<UnifiedSearch query={query} setQuery={q=>{setQuery(q);setAudiusOnly(false)}} results={results} busy={busy} error={musicError} status={status} latest={latest} setLatest={setLatest} retry={retry} playTrack={playTrack} current={current} isPlaying={isPlaying} toggleLike={toggleLike} likedIds={likedIds} setPage={setPage} onAdd={setAddTarget}/>
-  else if(page.type==='library')content=<LibraryPage playlists={playlists} setPage={setPage} setCreateOpen={setCreateOpen} likedCount={likedIds.length} onUpload={()=>fileRef.current?.click()}/>
+  else if(page.type==='library')content=<LibraryPage playlists={playlists} setPage={setPage} setCreateOpen={setCreateOpen} likedCount={likedIds.length}/>
+  else if(page.type==='recent'){
+    const byId=new Map(tracks.map(track=>[track.id,track]))
+    const recent=recentIds.map(id=>byId.get(id)).filter(Boolean)
+    content=<RecentPage tracks={recent} setPage={setPage} playTrack={track=>playTrack(track,false,recent)}
+      current={current} isPlaying={isPlaying} likedIds={likedIds} toggleLike={toggleLike} onAdd={setAddTarget}/>
+  }
   else if(['liked','playlist','artist','release'].includes(page.type)){
     const p=playlists.find(x=>x.id===page.id)
     const seed=page.track
@@ -526,7 +571,7 @@ export default function App() {
   return <div className="flex h-full flex-col bg-black text-white">
     <audio ref={audioRef} preload="metadata" data-testid="audio-engine"/>
     <TopBar page={page} setPage={setPage} query={query} setQuery={q=>{setQuery(q);setAudiusOnly(false)}}/>
-    <div className={`flex min-h-0 flex-1 gap-2 px-0 md:px-2 md:pb-[100px] ${current?'pb-[120px]':'pb-16'}`}><Sidebar page={page} setPage={setPage} playlists={playlists} setCreateOpen={setCreateOpen} onUpload={()=>fileRef.current?.click()}/><main ref={mainRef} className="spotify-scroll min-w-0 flex-1 overflow-y-auto rounded-none bg-[#121212] md:rounded-lg">{content}</main></div>
+    <div className={`flex min-h-0 flex-1 gap-2 px-0 md:px-2 md:pb-[100px] ${current?'pb-[120px]':'pb-16'}`}><Sidebar page={page} setPage={setPage} playlists={playlists} setCreateOpen={setCreateOpen}/><main ref={mainRef} className="spotify-scroll min-w-0 flex-1 overflow-y-auto rounded-none bg-[#121212] md:rounded-lg">{content}</main></div>
     <Player audioRef={audioRef} loading={playLoading} current={current} isPlaying={isPlaying} toggle={toggle} next={next} canAdvance={upcoming.length>0} previous={previous} shuffle={shuffle} setShuffle={toggleShuffle} repeat={repeat} setRepeat={setRepeat} volume={volume} setVolume={setVolume} seek={seek} liked={current&&likedIds.includes(current.id)} toggleLike={toggleLike} setQueueOpen={setQueueOpen}/>
     <MobileNav page={page} setPage={setPage}/>
     {playLoading&&<div role="status" className="fixed bottom-32 left-4 z-[65] rounded bg-[#282828] p-3 text-sm">{reconnecting?'Reconnecting audio…':'Loading audio…'}</div>}
@@ -534,6 +579,5 @@ export default function App() {
     {queueOpen&&<QueuePanel tracks={upcoming} current={current} playTrack={t=>playTrack(t,t.id!==current?.id)} onClose={()=>setQueueOpen(false)}/>}
     {addTarget&&!createOpen&&<div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4"><section role="dialog" aria-label="Add to playlist" className="w-full max-w-sm rounded-lg bg-[#282828] p-5"><div className="flex justify-between"><h2 className="text-xl font-bold">Add to playlist</h2><button onClick={()=>setAddTarget(null)} aria-label="Close playlist picker"><X/></button></div>{playlists.map(p=><button key={p.id} onClick={()=>addToPlaylist(addTarget,p.id)} className="block w-full text-left rounded p-3 hover:bg-white/10">{p.name}</button>)}<button onClick={()=>setCreateOpen(true)} className="mt-4 rounded-full bg-white text-black font-bold px-4 py-2">New playlist</button></section></div>}
     {createOpen&&<CreateModal onClose={()=>setCreateOpen(false)} onCreate={createPlaylist}/>}
-    <input ref={fileRef} type="file" accept="audio/*" className="hidden" onChange={handleUpload}/>
   </div>
 }
